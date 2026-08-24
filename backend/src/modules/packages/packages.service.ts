@@ -1,0 +1,313 @@
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Prisma, QuantitySource } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
+import { UplService } from '../upl/upl.service';
+import { ParsedGcl } from '../gcl/gcl.parser';
+import { CreateFromGclDto, UpdatePackageDto, QueryPackagesDto } from './packages.dto';
+
+const D = (n: number | string | Prisma.Decimal) => new Prisma.Decimal(n as any);
+const round2 = (d: Prisma.Decimal) => d.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+
+@Injectable()
+export class PackagesService {
+  private readonly logger = new Logger(PackagesService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly upl: UplService,
+    private readonly config: ConfigService,
+  ) {}
+
+  /* ------------------------------------------------------------ creation */
+
+  /**
+   * Turns a parsed GCL into a priced package.
+   *
+   * Quantity source note: Tawal's own Work Order for site 241-00-102R11 totals
+   * 11,216.00 SAR, which is the AS-BUILT quantity times the UPL price
+   * (SMART-TWR-025 was designed 2 / built 1). Design quantities would give
+   * 13,761.00. AS_BUILT is therefore the default, and DESIGN is one flag away.
+   */
+  async createFromGcl(
+    parsed: ParsedGcl,
+    dto: CreateFromGclDto,
+    source?: { fileName: string; filePath: string },
+  ) {
+    if (!parsed.woNumber && !dto.woNumber) {
+      throw new BadRequestException(
+        'No Work Order number could be read from the GCL. Supply one manually.',
+      );
+    }
+
+    const woNumber = (dto.woNumber ?? parsed.woNumber)!.trim();
+
+    const existing = await this.prisma.package.findUnique({ where: { woNumber } });
+    if (existing && !dto.overwrite) {
+      throw new BadRequestException(
+        `A package for ${woNumber} already exists. Re-upload with overwrite=true to replace it.`,
+      );
+    }
+    if (existing) {
+      await this.prisma.package.delete({ where: { id: existing.id } });
+    }
+
+    const quantitySource = dto.quantitySource ?? QuantitySource.AS_BUILT;
+    const uplVersion = dto.uplVersion ?? 'v1';
+    const defaults = this.config.get('defaults');
+
+    const priced = await this.priceLines(parsed.lines, quantitySource, uplVersion);
+    const warnings = [...parsed.warnings, ...priced.warnings];
+
+    const gross = priced.lines.reduce((a, l) => a.plus(l.lineTotal), D(0));
+    const discount = D(dto.discount ?? 0);
+    const foc = D(dto.foc ?? 0);
+    const net = round2(gross.minus(discount).minus(foc));
+
+    const serviceDate = dto.serviceDate ?? parsed.gclDate ?? null;
+
+    const pkg = await this.prisma.package.create({
+      data: {
+        woNumber,
+        siteNo: dto.siteNo ?? parsed.siteNo ?? 'UNKNOWN',
+        tawalSiteId: parsed.tawalSiteId,
+        region: this.expandRegion(parsed.region),
+        district: parsed.district,
+        projectName: (parsed.projectName || defaults.projectName).toUpperCase(),
+        contractorName: dto.contractorName ?? defaults.contractorName,
+        poNumber: parsed.poNumber,
+        poValue: dto.poValue != null ? D(dto.poValue) : null,
+        currency: defaults.currency,
+        quantitySource,
+        uplVersion,
+
+        gclDate: parsed.gclDate,
+        serviceDate,
+        handoverDate: dto.handoverDate ?? null,
+        startDate: dto.startDate ?? null,
+        endDate: dto.endDate ?? parsed.gclDate ?? null,
+
+        contractorPmName: dto.contractorPmName ?? parsed.contractorPmName,
+        contractorPmId: dto.contractorPmId ?? null,
+        mspRepName: parsed.mspRepName,
+        tawalPmName: dto.tawalPmName ?? null,
+        tawalPmId: dto.tawalPmId ?? null,
+
+        grossAmount: round2(gross),
+        discount: round2(discount),
+        foc: round2(foc),
+        netAmount: net,
+
+        notes: parsed.notes,
+        sourceFileName: source?.fileName,
+        sourceFilePath: source?.filePath,
+        parseWarnings: warnings.length ? (warnings as any) : Prisma.JsonNull,
+
+        lines: {
+          create: priced.lines.map((l, i) => ({
+            no: l.no,
+            itemCode: l.itemCode,
+            description: l.description,
+            unit: l.unit,
+            itemType: l.itemType,
+            designQty: D(l.designQty),
+            asBuiltQty: D(l.asBuiltQty),
+            quantity: D(l.quantity),
+            serialNumber: l.serialNumber,
+            tagNumber: 'N/A',
+            serviceDate,
+            unitPrice: D(l.unitPrice),
+            lineTotal: round2(l.lineTotal),
+            priceFound: l.priceFound,
+            sortOrder: i,
+          })),
+        },
+      },
+      include: { lines: { orderBy: { sortOrder: 'asc' } } },
+    });
+
+    this.logger.log(`Package ${woNumber} created — ${pkg.lines.length} lines, net ${net}`);
+    return { ...pkg, warnings };
+  }
+
+  /** Region on the GCL is abbreviated ("West"); PAC and WO spell it out. */
+  private expandRegion(region: string | null): string | null {
+    if (!region) return null;
+    const map: Record<string, string> = {
+      west: 'Western',
+      east: 'Eastern',
+      north: 'Northern',
+      south: 'Southern',
+      central: 'Central',
+    };
+    return map[region.toLowerCase().trim()] ?? region;
+  }
+
+  /* ------------------------------------------------------------- pricing */
+
+  private async priceLines(
+    lines: ParsedGcl['lines'],
+    quantitySource: QuantitySource,
+    uplVersion: string,
+  ) {
+    const priceMap = await this.upl.priceMap(
+      lines.map((l) => l.itemCode),
+      uplVersion,
+    );
+    const warnings: string[] = [];
+
+    const priced = lines.map((l) => {
+      const upl = priceMap.get(l.itemCode.toUpperCase());
+      const unitPrice = upl ? new Prisma.Decimal(upl.price) : D(0);
+
+      if (!upl) {
+        warnings.push(
+          `${l.itemCode} is not in UPL "${uplVersion}" — priced at 0.00. Add it to the price list and re-price.`,
+        );
+      }
+
+      const quantity = quantitySource === QuantitySource.DESIGN ? l.designQty : l.asBuiltQty;
+
+      return {
+        ...l,
+        // Prefer the fuller UPL wording; fall back to whatever the GCL carried.
+        description: upl?.description?.trim() || l.description,
+        unit: l.unit ?? upl?.uom ?? null,
+        unitPrice,
+        quantity,
+        lineTotal: unitPrice.mul(quantity),
+        priceFound: !!upl,
+      };
+    });
+
+    return { lines: priced, warnings };
+  }
+
+  /** Recomputes every line total and the package footer from current state. */
+  async reprice(packageId: string) {
+    const pkg = await this.prisma.package.findUnique({
+      where: { id: packageId },
+      include: { lines: { orderBy: { sortOrder: 'asc' } } },
+    });
+    if (!pkg) throw new NotFoundException('Package not found');
+
+    const priceMap = await this.upl.priceMap(
+      pkg.lines.map((l) => l.itemCode),
+      pkg.uplVersion,
+    );
+
+    let gross = D(0);
+    const updates: Prisma.PrismaPromise<any>[] = [];
+
+    for (const line of pkg.lines) {
+      const upl = priceMap.get(line.itemCode.toUpperCase());
+      const unitPrice = upl ? new Prisma.Decimal(upl.price) : line.unitPrice;
+      const quantity =
+        pkg.quantitySource === QuantitySource.DESIGN ? line.designQty : line.asBuiltQty;
+      const lineTotal = round2(unitPrice.mul(quantity));
+      gross = gross.plus(lineTotal);
+
+      updates.push(
+        this.prisma.packageLine.update({
+          where: { id: line.id },
+          data: { unitPrice, quantity, lineTotal, priceFound: !!upl },
+        }),
+      );
+    }
+
+    const net = round2(gross.minus(pkg.discount).minus(pkg.foc));
+    updates.push(
+      this.prisma.package.update({
+        where: { id: pkg.id },
+        data: { grossAmount: round2(gross), netAmount: net },
+      }),
+    );
+
+    await this.prisma.$transaction(updates);
+    return this.findOne(pkg.id);
+  }
+
+  /* --------------------------------------------------------------- CRUD */
+
+  async findAll(q: QueryPackagesDto) {
+    const where: any = {};
+    if (q.search) {
+      where.OR = [
+        { woNumber: { contains: q.search, mode: 'insensitive' } },
+        { siteNo: { contains: q.search, mode: 'insensitive' } },
+        { poNumber: { contains: q.search, mode: 'insensitive' } },
+      ];
+    }
+    if (q.status) where.status = q.status;
+
+    const take = Math.min(q.limit ?? 25, 100);
+    const skip = ((q.page ?? 1) - 1) * take;
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.package.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+        include: { _count: { select: { lines: true, documents: true } } },
+      }),
+      this.prisma.package.count({ where }),
+    ]);
+
+    return { items, total, page: q.page ?? 1, limit: take };
+  }
+
+  async findOne(id: string) {
+    const pkg = await this.prisma.package.findUnique({
+      where: { id },
+      include: {
+        lines: { orderBy: { sortOrder: 'asc' } },
+        documents: { orderBy: { createdAt: 'desc' } },
+      },
+    });
+    if (!pkg) throw new NotFoundException('Package not found');
+    return pkg;
+  }
+
+  async update(id: string, dto: UpdatePackageDto) {
+    const pkg = await this.prisma.package.findUnique({ where: { id } });
+    if (!pkg) throw new NotFoundException('Package not found');
+
+    const { lines, ...header } = dto;
+
+    const data: Prisma.PackageUpdateInput = {
+      ...header,
+      poValue: header.poValue != null ? D(header.poValue) : undefined,
+      discount: header.discount != null ? D(header.discount) : undefined,
+      foc: header.foc != null ? D(header.foc) : undefined,
+    };
+
+    await this.prisma.package.update({ where: { id }, data });
+
+    if (lines?.length) {
+      await this.prisma.$transaction(
+        lines.map((l) =>
+          this.prisma.packageLine.update({
+            where: { id: l.id },
+            data: {
+              tagNumber: l.tagNumber ?? undefined,
+              serialNumber: l.serialNumber ?? undefined,
+              serviceDate: l.serviceDate ?? undefined,
+              designQty: l.designQty != null ? D(l.designQty) : undefined,
+              asBuiltQty: l.asBuiltQty != null ? D(l.asBuiltQty) : undefined,
+              description: l.description ?? undefined,
+            },
+          }),
+        ),
+      );
+    }
+
+    // Any of the above can move the money, so always settle the totals afterwards.
+    return this.reprice(id);
+  }
+
+  async remove(id: string) {
+    await this.findOne(id);
+    return this.prisma.package.delete({ where: { id } });
+  }
+}

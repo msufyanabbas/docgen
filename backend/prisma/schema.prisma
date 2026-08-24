@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Unit Price List — the commercial reference (imported from UPL.xlsx).
+/// Prices are versioned so historical packages keep the price they were costed with.
+model UplItem {
+  id           String   @id @default(uuid())
+  version      String   @default("v1")
+  line         Int?
+  itemCode     String
+  description  String   @db.Text
+  categoryName String?
+  uom          String?
+  price        Decimal  @db.Decimal(14, 4)
+  currency     String   @default("SAR")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([version, itemCode])
+  @@index([itemCode])
+  @@map("upl_items")
+}
+
+enum QuantitySource {
+  DESIGN
+  AS_BUILT
+}
+
+enum PackageStatus {
+  DRAFT
+  READY
+  GENERATED
+}
+
+/// Whether the package started life as a signed GCL upload, or as a scope-of-work
+/// sheet that this system turned into a GCL.
+enum PackageOrigin {
+  GCL_UPLOAD
+  SCOPE_SHEET
+}
+
+/// One GCL = one work-order package = one BOQ + one WO + one PAC.
+model Package {
+  id             String         @id @default(uuid())
+  status         PackageStatus  @default(DRAFT)
+  origin         PackageOrigin  @default(GCL_UPLOAD)
+  quantitySource QuantitySource @default(AS_BUILT)
+  uplVersion     String         @default("v1")
+
+  // --- Identity (parsed from the GCL header) ---
+  woNumber       String
+  siteNo         String
+  tawalSiteId    String?
+  region         String?
+  district       String?
+  siteName       String?
+  budget         String?
+  subProjectName String?
+  projectName    String         @default("SMART TOWER")
+  contractorName String         @default("SMART LIFE")
+  poNumber       String?
+  poValue        Decimal?       @db.Decimal(14, 2)
+
+  // --- Dates ---
+  gclDate      DateTime?
+  serviceDate  DateTime?
+  handoverDate DateTime?
+  startDate    DateTime?
+  endDate      DateTime?
+
+  // --- Signatories ---
+  contractorPmName String?
+  contractorPmId   String?
+  mspRepName       String?
+  mspSignDate      DateTime?
+  tawalPmName      String?
+  tawalPmId        String?
+
+  /// Contractor signature supplied at GCL-creation time. Stamped on every row's
+  /// "IMPL Contr. Initial" cell and in the signature block. The company stamp is
+  /// a fixed asset and is not stored per package.
+  signatureFileName String?
+  signaturePath     String?
+
+  // --- Commercials ---
+  currency    String  @default("SAR")
+  grossAmount Decimal @default(0) @db.Decimal(14, 2)
+  discount    Decimal @default(0) @db.Decimal(14, 2)
+  foc         Decimal @default(0) @db.Decimal(14, 2)
+  netAmount   Decimal @default(0) @db.Decimal(14, 2)
+
+  notes          String? @db.Text
+  sourceFileName String?
+  sourceFilePath String?
+  parseWarnings  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines     PackageLine[]
+  documents GeneratedDocument[]
+
+  @@unique([woNumber])
+  @@index([siteNo])
+  @@map("packages")
+}
+
+model PackageLine {
+  id        String  @id @default(uuid())
+  packageId String
+  package   Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  no          Int
+  itemCode    String
+  description String  @db.Text
+  unit        String?
+  itemType    String? // Tangible | Service
+  workType    String?
+
+  designQty  Decimal @db.Decimal(12, 2)
+  asBuiltQty Decimal @db.Decimal(12, 2)
+  quantity   Decimal @db.Decimal(12, 2) // resolved from quantitySource
+
+  serialNumber String?
+  tagNumber    String    @default("N/A")
+  serviceDate  DateTime?
+
+  unitPrice  Decimal @db.Decimal(14, 4)
+  lineTotal  Decimal @db.Decimal(14, 2)
+  priceFound Boolean @default(true)
+
+  sortOrder Int @default(0)
+
+  @@index([packageId])
+  @@map("package_lines")
+}
+
+enum DocumentType {
+  GCL_PDF
+  BOQ_XLSX
+  BOQ_PDF
+  WO_PDF
+  WO_XLSX
+  PAC_PDF
+  BUNDLE_ZIP
+}
+
+model GeneratedDocument {
+  id        String       @id @default(uuid())
+  packageId String
+  package   Package      @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  type      DocumentType
+  fileName  String
+  path      String
+  sizeBytes Int          @default(0)
+  createdAt DateTime     @default(now())
+
+  @@index([packageId, type])
+  @@map("generated_documents")
+}

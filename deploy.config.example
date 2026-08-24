@@ -1,0 +1,41 @@
+# ---------------------------------------------------------------------------
+# Deployment target. Copy to `deploy.config` and fill in — that file is
+# gitignored, so credentials never reach the repo.
+#
+#   cp deploy.config.example deploy.config
+# ---------------------------------------------------------------------------
+
+# --- server ---
+SERVER_USER="root"
+SERVER_HOST="147.79.114.76"
+SERVER_PORT="22"
+
+# Path to a private key. Leave EMPTY to use password auth — the script opens one
+# SSH connection you authenticate once, then reuses it for every step
+# (sshpass is not available on Windows Git Bash, so multiplexing is the way).
+SSH_KEY=""
+
+# --- source ---
+# The server pulls from GitHub rather than receiving an upload. Large image
+# transfers over scp are what kept breaking on the last project.
+REPO_URL="https://github.com/msufyanabbas/tawal-docgen.git"
+BRANCH="master"
+
+# For a private repo, create a fine-grained PAT with read-only Contents access
+# and put it here. Leave empty for a public repo.
+GIT_TOKEN=""
+
+# --- server layout ---
+# Absolute paths or ~ both work. /var/www matches where the other apps on this
+# box live; use ~/tawal-docgen-src + ~/tawal-docgen if you prefer the home dir.
+DEPLOY_DIR="/var/www/tawal-docgen"       # docker-compose.yml and .env live here
+SRC_DIR="/var/www/tawal-docgen/src"      # git checkout the server builds from
+
+# --- networking ---
+# This box already runs other apps behind nginx on :80/:443, so the app binds a
+# private high port and the host nginx proxies the domain to it.
+HOST_HTTP_PORT="8090"
+DOMAIN="docgen.smart-life.sa"
+
+# --- images ---
+IMAGE_PREFIX="tawal-docgen"

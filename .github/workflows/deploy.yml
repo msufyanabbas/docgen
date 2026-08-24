@@ -1,0 +1,78 @@
+# Optional: deploy automatically on push to master.
+#
+# Requires four repository secrets (Settings -> Secrets and variables -> Actions):
+#   SSH_HOST        e.g. 147.79.114.76
+#   SSH_USER        e.g. root
+#   SSH_PRIVATE_KEY the full private key, BEGIN/END lines included
+#   SSH_PORT        optional, defaults to 22
+#
+# Password-only servers can't be used here — GitHub Actions needs key auth.
+# Generate a deploy key on the server and add the public half to authorized_keys:
+#   ssh-keygen -t ed25519 -f ~/.ssh/gh-deploy -N ""
+#   cat ~/.ssh/gh-deploy.pub >> ~/.ssh/authorized_keys
+#   cat ~/.ssh/gh-deploy          # <- this goes into SSH_PRIVATE_KEY
+
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Build and release on the server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 60s
+          command_timeout: 25m
+          script: |
+            set -euo pipefail
+            SRC="$HOME/tawal-docgen-src"
+            DEPLOY="$HOME/tawal-docgen"
+
+            cd "$SRC"
+            git fetch origin master --prune
+            git reset --hard origin/master
+            SHA=$(git rev-parse --short HEAD)
+            echo "deploying $SHA"
+
+            # Keep a rollback target, then build. Nothing is stopped until the
+            # build succeeds, so a broken commit leaves the site serving.
+            for svc in backend frontend; do
+              docker image inspect "tawal-docgen-$svc:latest" >/dev/null 2>&1 \
+                && docker tag "tawal-docgen-$svc:latest" "tawal-docgen-$svc:previous" || true
+            done
+
+            docker build -t tawal-docgen-backend:latest  -t "tawal-docgen-backend:$SHA"  ./backend
+            docker build -t tawal-docgen-frontend:latest -t "tawal-docgen-frontend:$SHA" ./frontend
+
+            cp "$SRC/docker-compose.prod.yml" "$DEPLOY/docker-compose.yml"
+            cd "$DEPLOY"
+            docker compose up -d --remove-orphans
+
+            for i in $(seq 1 30); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${HOST_HTTP_PORT:-8090}/api/health" || true)
+              if [ "$code" = "200" ]; then
+                echo "healthy"
+                docker image prune -f || true
+                exit 0
+              fi
+              sleep 3
+            done
+
+            echo "health check failed after 90s"
+            docker compose logs --tail=50 backend
+            exit 1

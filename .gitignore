@@ -1,0 +1,11 @@
+node_modules/
+dist/
+build/
+storage/
+.env
+.env.local
+*.log
+.DS_Store
+
+# Deployment credentials — server host, SSH key path, git token.
+deploy.config

@@ -1,0 +1,74 @@
+# Production stack. Copied to the server's deploy directory by scripts/deploy.sh;
+# images are built there and tagged :latest, so this file never builds.
+#
+# Only the frontend is published, on a private high port — the host nginx owns
+# :80/:443 and proxies the domain to it. The database and API stay on the
+# internal network.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-docgen}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      POSTGRES_DB: ${DB_NAME:-tawal_docgen}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-docgen} -d ${DB_NAME:-tawal_docgen}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  backend:
+    image: ${IMAGE_PREFIX:-tawal-docgen}-backend:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${DB_USER:-docgen}:${DB_PASSWORD}@db:5432/${DB_NAME:-tawal_docgen}?schema=public
+      STORAGE_ROOT: /app/storage
+      CORS_ORIGIN: ${PUBLIC_URL}
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+      DEFAULT_CONTRACTOR_NAME: ${DEFAULT_CONTRACTOR_NAME:-SMART LIFE}
+      DEFAULT_PROJECT_NAME: ${DEFAULT_PROJECT_NAME:-SMART TOWER}
+      DEFAULT_CURRENCY: ${DEFAULT_CURRENCY:-SAR}
+      AUTO_SEED_UPL: ${AUTO_SEED_UPL:-true}
+    volumes:
+      # Generated documents and uploaded GCLs must outlive the container.
+      - storage:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    # Chromium needs more than the default shm or it crashes mid-render.
+    shm_size: 512mb
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  frontend:
+    image: ${IMAGE_PREFIX:-tawal-docgen}-frontend:latest
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      # Bound to loopback: reachable only through the host nginx, never directly.
+      - "127.0.0.1:${HOST_HTTP_PORT:-8090}:80"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  pgdata:
+  storage:

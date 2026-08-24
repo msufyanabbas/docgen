@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: docgen
+      POSTGRES_PASSWORD: docgen
+      POSTGRES_DB: tawal_docgen
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docgen -d tawal_docgen"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://docgen:docgen@db:5432/tawal_docgen?schema=public
+      STORAGE_ROOT: /app/storage
+      CORS_ORIGIN: http://localhost:8080
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+      DEFAULT_CONTRACTOR_NAME: SMART LIFE
+      DEFAULT_PROJECT_NAME: SMART TOWER
+      AUTO_SEED_UPL: "true"
+    volumes:
+      - storage:/app/storage
+    ports:
+      - "3000:3000"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:
+  storage:

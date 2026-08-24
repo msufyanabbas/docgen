@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  /*
+    Geometry lifted point-for-point from Tawal's own Work Order PDF
+    (241-00-102R11_WO.pdf, A4 = 595.32 x 841.92pt). All units are pt so the
+    output overlays the original almost exactly.
+  */
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 595.32pt; height: 841.92pt; position: relative;
+    font-family: Tahoma, "DejaVu Sans", Verdana, sans-serif;
+    font-size: 6.6pt; color: #000; -webkit-print-color-adjust: exact;
+  }
+
+  .abs { position: absolute; }
+
+  /* --- classification banners --- */
+  .banner {
+    left: 0; width: 595.32pt; text-align: center;
+    font-family: Aptos, Calibri, "DejaVu Sans", sans-serif;
+    font-size: 6pt; color: #F59042; letter-spacing: .1pt;
+  }
+  .banner-top { top: 22pt; }
+  .banner-bottom { top: 812.5pt; font-weight: bold; }
+
+  .page-no {
+    left: 0; width: 595.32pt; top: 803.5pt; text-align: center;
+    font-weight: bold; font-size: 6.6pt;
+  }
+
+  /* --- header block --- */
+  .hdr-label { text-align: right; width: 87pt; left: 18.4pt; font-weight: bold; }
+  .hdr-value { left: 108.4pt; }
+  .hdr-rule { left: 37.8pt; width: 247.7pt; height: .6pt; background: #D9D9D9; }
+  .logo { left: 380pt; top: 35pt; width: 127pt; }
+
+  /* --- main grid --- */
+  table { border-collapse: collapse; table-layout: fixed; }
+  td, th { padding: 0; margin: 0; }
+
+  .grid { left: 18.5pt; top: 90.7pt; width: 519.2pt; }
+  .grid th, .grid td {
+    border: .6pt solid #000; text-align: center; vertical-align: middle;
+    overflow: hidden; white-space: nowrap;
+  }
+  .grid thead th { background: #F2F2F2; font-weight: bold; height: 13.6pt; }
+  .grid tbody td { height: 11.62pt; }
+  .grid tbody tr.spacer td { height: 10.7pt; border-color: #F2F2F2; border-bottom-color: #A6A6A6; }
+  .grid tbody tr.spacer td:first-child { border-left-color: #A6A6A6; }
+  .grid tbody tr.spacer td:last-child { border-right-color: #A6A6A6; }
+  .grid tbody tr:last-child td { border-bottom: 1.2pt solid #A6A6A6; }
+
+  .c-wo   { font-family: Calibri, Carlito, "DejaVu Sans", sans-serif; font-size: 6.6pt; }
+  .c-amt  { font-family: Calibri, Carlito, "DejaVu Sans", sans-serif; text-align: right; padding-right: 4pt; }
+
+  /* --- totals --- */
+  .totals { left: 341.8pt; top: 287pt; width: 195.9pt; }
+  .totals td { border: .6pt solid #000; height: 11.8pt; font-weight: bold; }
+  .totals td.k { background: #E7E6E6; text-align: right; padding-right: 3pt; width: 66.8pt; }
+  .totals td.v { text-align: right; padding-right: 4.5pt; }
+
+  /* --- signature block --- */
+  .sig-title {
+    left: 285.4pt; top: 342.4pt; width: 252.1pt; height: 22.4pt;
+    background: #F2F2F2; border: 1.2pt solid #808080; border-bottom: .6pt solid #000;
+    font-weight: bold; text-align: center; line-height: 20pt;
+  }
+  .sig { left: 285.2pt; top: 365.1pt; width: 252.5pt; }
+  .sig td { border: .6pt solid #000; font-weight: bold; text-align: center; }
+  .sig td.k { width: 56.6pt; }
+  .sig tr.r1 td { height: 15.3pt; }
+  .sig tr.r2 td { height: 38.7pt; }
+</style>
+</head>
+<body>
+  {{#if logoTawal}}<img class="abs logo" src="{{logoTawal}}" alt="TAWAL" />{{/if}}
+
+  <!-- header -->
+  <div class="abs hdr-label" style="top:45.2pt">Contractor Name:</div>
+  <div class="abs hdr-value" style="top:45.2pt">{{contractorName}}</div>
+  <div class="abs hdr-rule" style="top:52.6pt"></div>
+
+  <div class="abs hdr-label" style="top:55.1pt">PO VALUE:</div>
+  <div class="abs hdr-value" style="top:55.1pt">{{#if poValue}}{{money poValue}}{{/if}}</div>
+  <div class="abs hdr-rule" style="top:62.5pt"></div>
+
+  <div class="abs hdr-label" style="top:65.1pt">PO#:</div>
+  <div class="abs hdr-value" style="top:65.1pt;font-family:Calibri,Carlito,sans-serif;font-weight:bold">{{poNumber}}</div>
+  <div class="abs hdr-rule" style="top:72.5pt"></div>
+
+  <div class="abs hdr-label" style="top:75pt">Project Name:</div>
+  <div class="abs hdr-value" style="top:75pt">{{projectName}}</div>
+  <div class="abs hdr-rule" style="top:82.4pt"></div>
+
+  <!-- work order grid -->
+  <table class="abs grid">
+    <colgroup>
+      <col style="width:19.1pt" /><col style="width:69.1pt" /><col style="width:178.5pt" />
+      <col style="width:56.6pt" /><col style="width:66.8pt" /><col style="width:66.7pt" />
+      <col style="width:61.8pt" />
+    </colgroup>
+    <thead>
+      <tr>
+        <th>S/N</th><th>Site ID</th><th>Work Order Number</th>
+        <th>Handover Date</th><th>Start Date</th><th>End Date</th><th>Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each rows}}
+      <tr>
+        <td>{{this.sn}}</td>
+        <td>{{this.siteId}}</td>
+        <td class="c-wo">{{this.woNumber}}</td>
+        <td>{{shortDate this.handoverDate}}</td>
+        <td>{{shortDate this.startDate}}</td>
+        <td>{{shortDate this.endDate}}</td>
+        <td class="c-amt">{{money this.amount dashOnZero=false}}</td>
+      </tr>
+      {{/each}}
+      {{#padRows rows tableRows}}
+      <tr>
+        <td>{{index}}</td><td></td><td></td><td></td><td></td><td></td><td></td>
+      </tr>
+      {{/padRows}}
+      <tr class="spacer">
+        <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- totals -->
+  <table class="abs totals">
+    <tr><td class="k">Gross Amount:</td><td class="v">{{money grossAmount dashOnZero=false}}</td></tr>
+    <tr><td class="k">Discount:</td><td class="v">{{money discount}}</td></tr>
+    <tr><td class="k">FOC:</td><td class="v">{{#if foc}}{{money foc}}{{/if}}</td></tr>
+    <tr><td class="k">Net:</td><td class="v">{{money netAmount dashOnZero=false}}</td></tr>
+  </table>
+
+  <!-- signature -->
+  <div class="abs sig-title">Tawal Project Manger</div>
+  <table class="abs sig">
+    <tr class="r1"><td class="k">Name</td><td>{{tawalPmName}}</td></tr>
+    <tr class="r2"><td class="k">signature</td><td></td></tr>
+  </table>
+
+  <div class="abs page-no">Page 1 of 1</div>
+
+</body>
+</html>

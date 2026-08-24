@@ -1,0 +1,202 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  /*
+    Preliminary Acceptance Certificate — geometry taken from
+    241-00-102R11_PAC.pdf. Outer frame 50.4pt..516.6pt x 54pt..551.8pt.
+  */
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 595.32pt; height: 841.92pt; position: relative;
+    font-family: Tahoma, "DejaVu Sans", Verdana, sans-serif;
+    font-size: 5.2pt; color: #000; -webkit-print-color-adjust: exact;
+  }
+  .ar {
+    direction: rtl;
+    font-family: Tahoma, "Noto Naskh Arabic", "Noto Sans Arabic", Amiri, "DejaVu Sans", sans-serif;
+  }
+  .abs { position: absolute; }
+
+  .banner {
+    left: 0; width: 595.32pt; text-align: center;
+    font-family: Aptos, Calibri, "DejaVu Sans", sans-serif;
+    font-size: 4.7pt; color: #F59042;
+  }
+
+  .frame {
+    left: 50.4pt; top: 54pt; width: 466.2pt; height: 497.8pt;
+    border: 1pt solid #000;
+  }
+
+  table { border-collapse: collapse; table-layout: fixed; }
+  td, th { padding: 0; margin: 0; vertical-align: middle; }
+
+  .logo-wrap { left: 50.4pt; top: 54pt; width: 466.2pt; height: 33.4pt; text-align: center; }
+  .logo-wrap img { height: 22pt; margin-top: 1pt; }
+
+  /* --- title band --- */
+  .title { left: 51.4pt; top: 87.4pt; width: 464.2pt; height: 9.6pt; }
+  .title td {
+    background: #D9D9D9; border-top: 1pt solid #000; border-bottom: 1pt solid #000;
+    text-align: center; font-weight: bold; font-size: 7.6pt; line-height: 9.2pt;
+  }
+  .title td.l { border-right: 1pt solid #000; width: 218.3pt; }
+
+  /* --- clause body --- */
+  .clause { left: 51.4pt; top: 97.2pt; width: 464.2pt; height: 102.4pt; }
+  .clause td { vertical-align: top; font-size: 6.1pt; line-height: 7.8pt; padding: 6pt 4pt 0 4pt; }
+  .clause td.l { border-right: 1pt solid #000; width: 218.3pt; }
+  .clause .lead-in { margin-bottom: 8pt; }
+  .clause p { margin: 0 0 7pt 0; }
+  .ref { color: #0563C1; }
+
+  /* --- project info rows --- */
+  .info { left: 50.9pt; top: 200.1pt; width: 465.3pt; }
+  .info td {
+    border: 1pt solid #000; height: 14.05pt; font-weight: bold; font-size: 5.2pt;
+  }
+  .info td.k { width: 71.8pt; padding-left: 1.8pt; }
+  .info td.v { width: 239.3pt; text-align: center; }
+  .info td.a { text-align: right; padding-right: 2pt; }
+
+  /* --- site grid --- */
+  .sites { left: 50.9pt; top: 242.5pt; width: 465.3pt; }
+  .sites th {
+    background: #D9D9D9; border: 1pt solid #000; height: 13.7pt;
+    font-weight: bold; font-size: 5.2pt; text-align: center;
+  }
+  .sites td {
+    border: .5pt solid #000; border-left: 1pt solid #000; border-right: 1pt solid #000;
+    height: 14.97pt; text-align: center; font-weight: bold; font-size: 5.2pt;
+    overflow: hidden; white-space: nowrap;
+  }
+  .sites tr:last-child td { border-bottom: 1pt solid #000; }
+
+  /* --- signature block --- */
+  .sigh { left: 50.9pt; top: 466.7pt; width: 465.3pt; }
+  .sigh td {
+    background: #D9D9D9; border: 1pt solid #000; height: 16.7pt;
+    text-align: center; font-weight: bold; font-size: 5.2pt;
+  }
+  .sigb { left: 50.9pt; top: 483.4pt; width: 465.3pt; }
+  .sigb td {
+    border-bottom: .5pt solid #000; border-left: 1pt solid #000; border-right: 1pt solid #000;
+    height: 16.88pt; font-size: 5.2pt; padding-left: 1.2pt; width: 242pt;
+  }
+  .sigb tr:last-child td { border-bottom: 1pt solid #000; }
+</style>
+</head>
+<body>
+
+  <div class="abs frame"></div>
+
+  <div class="abs logo-wrap">
+    {{#if logoTawal}}<img src="{{logoTawal}}" alt="TAWAL" />{{/if}}
+  </div>
+
+  <table class="abs title">
+    <tr>
+      <td class="l">Preliminary Acceptance Certificate</td>
+      <td class="ar">شهادة استلام ابتدائية</td>
+    </tr>
+  </table>
+
+  <table class="abs clause">
+    <tr>
+      <td class="l">
+        <p class="lead-in">
+          Save the defects, malfunctions and bugs stated herein above/ PAT, TAWAL
+          subject to <span class="ref">clause 7</span> of the Agreement hereby certifies that:
+        </p>
+        <p>&bull;&#9;The rest of the Products and/or Services described in the above Agreement
+          and the respective Work Order have been delivered, provided and completed by the
+          Supplier after the inspection and testing conducted by TAWAL from the RFA date
+          until the PAT Period End Date.</p>
+        <p>&bull;&#9;The FAC will not be issued until the above defects, malfunctions and bugs
+          are rectified within the Rectification Period stated hereinabove.</p>
+      </td>
+      <td class="ar">
+        <p class="lead-in">بالاشارة الى العيوب والأعطال والأخطاء المذكورة أعلاه او في PAT الاستلام
+          المبدئي ، واستنادا <span class="ref">للبند 7</span> من الاتفاقية فإن توال تصادق على ما يلي:</p>
+        <p>&bull; بقية المنتجات و / أو الخدمات الموضحة في الاتفاقية أعلاه وأمر العمل المعني قد تم
+          تسليمها وتقديمها وإكمالها من قبل المقاول بعد الفحص والاختبار الذي أجرته توال من تاريخ
+          RFA حتى تاريخ انتهاء فترة PAT.</p>
+        <p>&bull; لن يتم إصدار FAC حتى يتم تصحيح العيوب والأعطال والأخطاء المذكورة أعلاه خلال
+          فترة التصحيح.</p>
+      </td>
+    </tr>
+  </table>
+
+  <table class="abs info">
+    <tr>
+      <td class="k">Project Name :</td>
+      <td class="v">{{projectName}}</td>
+      <td class="a ar">اسم المشروع :</td>
+    </tr>
+    <tr>
+      <td class="k">Contractor Name :</td>
+      <td class="v">{{contractorName}}</td>
+      <td class="a ar">اسم المقاول :</td>
+    </tr>
+    <tr>
+      <td class="k">P.O No. :</td>
+      <td class="v">{{poNumber}}</td>
+      <td class="a ar">رقم أمر الشراء:</td>
+    </tr>
+  </table>
+
+  <table class="abs sites">
+    <colgroup>
+      <col style="width:71.8pt" /><col style="width:44.6pt" />
+      <col style="width:46.2pt" /><col style="width:302.7pt" />
+    </colgroup>
+    <thead>
+      <tr><th>Site ID</th><th>Region</th><th>District</th><th>WO Number</th></tr>
+    </thead>
+    <tbody>
+      {{#each rows}}
+      <tr>
+        <td>{{this.siteId}}</td>
+        <td>{{this.region}}</td>
+        <td>{{this.district}}</td>
+        <td>{{this.woNumber}}</td>
+      </tr>
+      {{/each}}
+      {{#padRows rows tableRows}}
+      <tr><td></td><td></td><td></td><td></td></tr>
+      {{/padRows}}
+    </tbody>
+  </table>
+
+  <table class="abs sigh">
+    <tr>
+      <td style="width:242pt">Contractor Project Manager</td>
+      <td>Tawal Project Manager</td>
+    </tr>
+  </table>
+
+  <table class="abs sigb">
+    <tr>
+      <td>{{contractorPmName}}</td>
+      <td>Name : {{tawalPmName}}</td>
+    </tr>
+    <tr>
+      <td>{{#if contractorPmId}}ID:{{contractorPmId}}{{/if}}</td>
+      <td>ID: {{tawalPmId}}</td>
+    </tr>
+    <tr>
+      <td></td>
+      <td>Sign :</td>
+    </tr>
+    <tr>
+      <td>{{#if pacDate}}Date : {{slashDate pacDate}}{{/if}}</td>
+      <td>Date :</td>
+    </tr>
+  </table>
+
+</body>
+</html>

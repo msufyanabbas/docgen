@@ -1,0 +1,94 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  /* PDF twin of the As-Built BOQ workbook — same palette, same column order. */
+  @page { size: A4 landscape; margin: 12mm 10mm; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: "Aptos Narrow", Aptos, Calibri, "DejaVu Sans", sans-serif;
+    font-size: 8pt; color: #0D0D0D; -webkit-print-color-adjust: exact;
+  }
+
+  .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10pt; }
+  .head img.sl { height: 26pt; }
+  .head img.tw { height: 20pt; }
+  h1 { font-size: 12pt; margin: 0; letter-spacing: .4pt; text-transform: uppercase; }
+
+  .meta { width: 100%; border-collapse: collapse; margin-bottom: 10pt; font-size: 8pt; }
+  .meta td { padding: 2pt 4pt; border: .5pt solid #C9C9C9; }
+  .meta td.k { background: #F2F2F2; font-weight: bold; width: 12%; white-space: nowrap; }
+
+  table.boq { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  table.boq th {
+    background: #0E2841; color: #fff; font-weight: bold; font-size: 8pt;
+    border: .5pt solid #0E2841; padding: 4pt 2pt; text-align: center;
+  }
+  table.boq td {
+    border: .5pt solid #BFBFBF; padding: 3pt 2pt; text-align: center;
+    font-size: 8pt; word-break: break-all;
+  }
+  table.boq td.code { color: #C55A11; }
+  table.boq tbody tr:nth-child(even) td { background: #FAFAFA; }
+
+  .notes { margin-top: 10pt; font-size: 7.5pt; color: #444; white-space: pre-line; }
+  .sign { margin-top: 26pt; width: 100%; border-collapse: collapse; font-size: 8pt; }
+  .sign td { border: .5pt solid #999; height: 42pt; vertical-align: top; padding: 3pt 4pt; width: 50%; }
+  .sign td b { font-size: 8pt; }
+</style>
+</head>
+<body>
+
+  <div class="head">
+    {{#if logoSmartLife}}<img class="sl" src="{{logoSmartLife}}" alt="Smart Life" />{{/if}}
+    <h1>As-Built BOQ</h1>
+    {{#if logoTawal}}<img class="tw" src="{{logoTawal}}" alt="TAWAL" />{{/if}}
+  </div>
+
+  <table class="meta">
+    <tr>
+      <td class="k">Site ID</td><td>{{siteNo}}</td>
+      <td class="k">Region</td><td>{{region}}</td>
+      <td class="k">District</td><td>{{district}}</td>
+      <td class="k">PO #</td><td>{{poNumber}}</td>
+    </tr>
+    <tr>
+      <td class="k">WO #</td><td colspan="3">{{woNumber}}</td>
+      <td class="k">Project</td><td>{{projectName}}</td>
+      <td class="k">Contractor</td><td>{{contractorName}}</td>
+    </tr>
+  </table>
+
+  <table class="boq">
+    <colgroup>
+      <col style="width:44%" /><col style="width:14%" /><col style="width:12%" />
+      <col style="width:14%" /><col style="width:16%" />
+    </colgroup>
+    <thead>
+      <tr><th>WO #</th><th>Item Code</th><th>Quantity</th><th>TAG #</th><th>Service Date</th></tr>
+    </thead>
+    <tbody>
+      {{#each rows}}
+      <tr>
+        <td>{{this.woNumber}}</td>
+        <td class="code">{{this.itemCode}}</td>
+        <td>{{qty this.quantity}}</td>
+        <td>{{this.tagNumber}}</td>
+        <td>{{shortDate this.serviceDate}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  {{#if notes}}<div class="notes"><b>GCL remarks:</b><br />{{notes}}</div>{{/if}}
+
+  <table class="sign">
+    <tr>
+      <td><b>Implementation Contractor</b><br />{{contractorPmName}}</td>
+      <td><b>MSP Representative</b><br />{{mspRepName}}</td>
+    </tr>
+  </table>
+
+</body>
+</html>

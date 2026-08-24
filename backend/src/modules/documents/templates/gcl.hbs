@@ -1,0 +1,264 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  /*
+    Handing Over GCL for Minor Scope.
+    Geometry measured from 241-00-102R11_GCL-Signed.pdf (A4, 595.32 x 841.92pt).
+    Table spans 17.6pt .. 501.3pt; column edges are the originals to the tenth of a point.
+  */
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 595.32pt; height: 841.92pt; position: relative;
+    font-family: Calibri, Carlito, "DejaVu Sans", sans-serif;
+    font-size: 7.1pt; color: #000; -webkit-print-color-adjust: exact;
+  }
+  .abs { position: absolute; }
+  table { border-collapse: collapse; table-layout: fixed; }
+  td, th { padding: 0; margin: 0; vertical-align: middle; }
+
+  /* --- classification banners (green on the GCL, unlike the WO/PAC) --- */
+  .banner {
+    left: 0; width: 595.32pt; text-align: center;
+    font-family: Aptos, Calibri, "DejaVu Sans", sans-serif;
+    font-size: 8.8pt; color: #008000;
+  }
+
+  .doc-title {
+    left: 0; top: 85pt; width: 519.4pt; text-align: center;
+    font-size: 10.6pt; font-weight: bold;
+  }
+
+  /* --- logo band --- */
+  .logos { left: 18.1pt; top: 101.5pt; width: 483.2pt; height: 44pt; }
+  .logos td { border: .8pt solid #000; text-align: center; }
+  .logos td.l { width: 240.4pt; }
+  .logos img.sl { height: 30pt; }
+  .logos img.tw { height: 25pt; }
+
+  /* --- header block --- */
+  .hdr-label { left: 20.2pt; font-weight: bold; }
+  .hdr-label2 { left: 260.6pt; font-weight: bold; }
+  .hdr-val-left {
+    left: 99.1pt; width: 160.3pt; text-align: center;
+    font-family: "Aptos Narrow", Aptos, Calibri, sans-serif; font-weight: bold; font-size: 8.8pt;
+  }
+  .hdr-val-right { left: 305.7pt; width: 195.3pt; text-align: center; font-weight: bold; }
+  .rule { background: #000; height: .8pt; }
+
+  .wo-box {
+    left: 305.3pt; top: 155.4pt; width: 196pt; height: 23.2pt;
+    border: .8pt solid #000; border-top-width: .8pt;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; font-weight: bold; font-size: 8.8pt; line-height: 10pt;
+    padding: 0 2pt; word-break: break-all;
+    font-family: "Aptos Narrow", Aptos, Calibri, sans-serif;
+  }
+
+  .grid4 { left: 98.3pt; top: 198.1pt; width: 403pt; }
+
+  /* --- main scope table --- */
+  /* Anchored once; children below flow naturally so the block tracks the
+     table's height instead of relying on hard-coded offsets per row count. */
+  .lower { left: 17.6pt; top: 228.7pt; width: 484.5pt; }
+  .scope { width: 484.5pt; border: 1.7pt solid #000; }
+  .scope th, .scope td { border: .8pt solid #000; }
+  .scope thead th {
+    background: #FFF2CC; font-weight: bold; font-size: 7.1pt;
+    text-align: center; height: 41.4pt; padding: 0 1pt; line-height: 8pt;
+  }
+  .scope tbody td { padding: 3pt 2pt; text-align: center; overflow: hidden; }
+  .scope tbody td.desc { text-align: left; padding-left: 2pt; line-height: 9.4pt; }
+  /* SMART-TWR-001 is 13 chars in a 55.3pt column; at 7.1pt Calibri that clips.
+     6.4pt with tight tracking fits the longest real code with room to spare, and
+     overflow-wrap keeps anything longer inside the cell instead of bleeding out. */
+  .scope tbody td.code {
+    font-size: 6.4pt; letter-spacing: -.15pt; padding: 3pt 1pt;
+    overflow-wrap: anywhere; word-break: break-word; line-height: 8pt;
+  }
+  .scope tbody td.sig { padding: 1pt; }
+  .scope tbody td.sig img { height: 15pt; }
+
+  /* --- signature block --- */
+  .sig-head { width: 484.5pt; }
+  .sig-head td {
+    border: .8pt solid #000; height: 21.7pt; text-align: center;
+    font-weight: bold; font-size: 7.1pt;
+  }
+  .sig-head td.l { width: 241.3pt; }
+
+  .sig-body { width: 484.5pt; margin-left: .5pt; }
+  .sig-body td { border: .8pt solid #000; font-weight: bold; font-size: 7.1pt; }
+  .sig-body td.k { width: 80.2pt; padding-left: 1.8pt; }
+  .sig-body td.a { width: 160.2pt; text-align: center; position: relative; }
+  .sig-body td.b { width: 96.5pt; text-align: center; }
+  .sig-body td.c { width: 43.4pt; text-align: center; }
+  .sig-body td.d { padding-left: 2pt; }
+  .sig-body tr.r1 td, .sig-body tr.r2 td { height: 16.7pt; }
+  .sig-body tr.r3 td { height: 37.1pt; }
+
+  /* Signature and stamp overlap slightly, exactly as they do on a wet-signed form. */
+  .sign-cell { position: relative; height: 100%; }
+  .sign-cell img.sign { position: absolute; left: 8pt; top: 8pt; height: 20pt; }
+  .sign-cell img.stamp { position: absolute; left: 62pt; top: 0pt; height: 48pt; opacity: .92; }
+
+  /* --- instructions --- */
+  .notes-box { width: 483.2pt; margin: 8.7pt 0 0 .5pt; border: .8pt solid #000; }
+  .notes-box .ins { padding: 2.4pt 0 2.4pt 32pt; font-size: 7.1pt; line-height: 9.5pt; }
+  .notes-box .ins li { margin: 0; }
+  .notes-box ol { margin: 0; padding-left: 18pt; }
+  .no-grid { width: 100%; border-top: .8pt solid #000; }
+  .no-grid td { border: .8pt solid #000; height: 9.5pt; font-size: 7.1pt; }
+  .no-grid td.k { width: 80.2pt; text-align: center; font-weight: bold; }
+
+  .remarks {
+    margin: 6pt 0 0 38.7pt; width: 430pt;
+    font-family: Arial, Helvetica, "DejaVu Sans", sans-serif; font-size: 8pt;
+    line-height: 10.5pt; white-space: pre-line;
+  }
+</style>
+</head>
+<body>
+  <div class="abs doc-title">Handing Over GCL for Minor Scope</div>
+
+  <table class="abs logos">
+    <tr>
+      <td class="l">{{#if logoSmartLife}}<img class="sl" src="{{logoSmartLife}}" alt="Smart Life" />{{/if}}</td>
+      <td>{{#if logoTawal}}<img class="tw" src="{{logoTawal}}" alt="TAWAL" />{{/if}}</td>
+    </tr>
+  </table>
+
+  <!-- header: Tawal Site ID / WO -->
+  <div class="abs hdr-label" style="top:163pt">Tawal Site ID</div>
+  <div class="abs hdr-val-left" style="top:156.2pt">{{tawalSiteId}}</div>
+  <div class="abs rule" style="left:99.1pt;top:177.7pt;width:160.3pt"></div>
+  <div class="abs hdr-label2" style="top:163.5pt">WO</div>
+  <div class="abs wo-box">{{woNumber}}</div>
+
+  <!-- header: Site No. / Project -->
+  <div class="abs hdr-label" style="top:184.4pt">Site No.</div>
+  <div class="abs hdr-val-left" style="top:189.1pt">{{siteNo}}</div>
+  <div class="abs rule" style="left:99.1pt;top:198.1pt;width:160.3pt"></div>
+  <div class="abs hdr-label2" style="top:184.8pt">Project</div>
+  <div class="abs hdr-val-right" style="top:184.4pt">{{projectName}}</div>
+  <div class="abs rule" style="left:305.7pt;top:198.1pt;width:195.3pt"></div>
+
+  <!-- header: Region+District / PO+Date -->
+  <div class="abs hdr-label" style="top:200pt">Region</div>
+  <div class="abs hdr-label" style="top:210.8pt">District</div>
+  <div class="abs hdr-label2" style="top:200.4pt">PO</div>
+  <div class="abs hdr-label2" style="top:211.2pt">Date:</div>
+
+  <table class="abs grid4">
+    <colgroup><col style="width:161.1pt" /><col style="width:46.3pt" /><col style="width:195.6pt" /></colgroup>
+    <tr>
+      <td style="border:.8pt solid #000;height:10.8pt;text-align:center;font-weight:bold">{{region}}</td>
+      <td></td>
+      <td style="border:.8pt solid #000;height:10.8pt;text-align:center;font-weight:bold">{{poNumber}}</td>
+    </tr>
+    <tr>
+      <td style="border:.8pt solid #000;height:10.8pt;text-align:center;font-weight:bold">{{district}}</td>
+      <td></td>
+      <td style="border:.8pt solid #000;height:10.8pt;text-align:center;font-weight:bold">{{gclDateLabel}}</td>
+    </tr>
+  </table>
+
+  <div class="abs lower">
+
+  <!-- scope table -->
+  <table class="scope">
+    <colgroup>
+      <col style="width:24.5pt" /><col style="width:55.3pt" /><col style="width:160.2pt" />
+      <col style="width:46.8pt" /><col style="width:28.5pt" /><col style="width:21.2pt" />
+      <col style="width:43.4pt" /><col style="width:66.6pt" /><col style="width:36.3pt" />
+    </colgroup>
+    <thead>
+      <tr>
+        <th>NO</th><th>Item Code</th><th>Description</th><th>Unit</th>
+        <th>Design<br />QTY</th><th>As<br />Bulit<br />QTY</th>
+        <th>Tangible Or<br />Service item</th>
+        <th>IMPL Contr. Initial</th><th>MSP Initial</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each rows}}
+      <tr>
+        <td>{{this.no}}</td>
+        <td class="code">{{this.itemCode}}</td>
+        <td class="desc">{{this.description}}</td>
+        <td>{{this.unit}}</td>
+        <td>{{qty this.designQty}}</td>
+        <td>{{qty this.asBuiltQty}}</td>
+        <td>{{this.itemType}}</td>
+        <td class="sig">{{#if ../signature}}<img src="{{../signature}}" alt="" />{{/if}}</td>
+        <td></td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  <!-- signature block -->
+  <table class="sig-head">
+    <tr>
+      <td class="l">Implementation Contractor</td>
+      <td>MSP Representative</td>
+    </tr>
+  </table>
+
+  <table class="sig-body">
+    <tr class="r1">
+      <td class="k">Name:</td>
+      <td class="a">{{contractorPmName}}</td>
+      <td class="b">{{mspRepName}}</td>
+      <td class="c">&#168;</td>
+      <td class="d">Accepted</td>
+    </tr>
+    <tr class="r2">
+      <td class="k">Date:</td>
+      <td class="a">{{gclDateLabel}}</td>
+      <td class="b">{{slashDate mspSignDate}}</td>
+      <td class="c">&#168;</td>
+      <td class="d">Accepted with Oil</td>
+    </tr>
+    <tr class="r3">
+      <td class="k">Signature</td>
+      <td class="a">
+        <div class="sign-cell">
+          {{#if signature}}<img class="sign" src="{{signature}}" alt="signature" />{{/if}}
+          {{#if stamp}}<img class="stamp" src="{{stamp}}" alt="stamp" />{{/if}}
+        </div>
+      </td>
+      <td class="b"></td>
+      <td class="c">&#168;</td>
+      <td class="d">Reject</td>
+    </tr>
+  </table>
+
+  <!-- standing instructions + blank remark grid -->
+  <div class="notes-box">
+    <div class="ins">
+      <ol>
+        <li>Tangible items shall be sign off by the MSP for handing over assets</li>
+        <li>After checking functionality of the instilled installed assets, MSP shall sign the whole form for scope handing over</li>
+        <li>This form shall be used for Minor Scopes only</li>
+        <li>Service items shall be signed off by the IMPL Contractor</li>
+        <li>Form shall be prepared by IMPL team before handing over visit</li>
+      </ol>
+    </div>
+    <table class="no-grid">
+      <tr><td class="k">No</td><td></td></tr>
+      <tr><td class="k">1</td><td></td></tr>
+      <tr><td class="k">2</td><td></td></tr>
+      <tr><td class="k">3</td><td></td></tr>
+    </table>
+  </div>
+
+  {{#if notes}}<div class="remarks">{{notes}}</div>{{/if}}
+
+  </div>
+
+</body>
+</html>
