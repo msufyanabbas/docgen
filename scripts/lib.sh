@@ -54,9 +54,10 @@ SSH_OPTS=()
 setup_ssh() {
   SSH_OPTS=(
     -p "$SERVER_PORT"
-    -o ControlMaster=auto
-    -o "ControlPath=$CONTROL_PATH"
-    -o ControlPersist=15m
+    -o ServerAliveInterval=30
+    -o ServerAliveCountMax=6
+    -o ConnectTimeout=20
+    -o StrictHostKeyChecking=accept-new
     -o ServerAliveInterval=30
     -o ServerAliveCountMax=6
     -o ConnectTimeout=20
