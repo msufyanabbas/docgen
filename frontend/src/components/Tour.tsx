@@ -32,7 +32,8 @@ export interface TourStep {
   placement?: 'top' | 'bottom' | 'left' | 'right';
 }
 
-const STORAGE_KEY = 'docgen.tour.completed.v1';
+// Bumped when the tour changes, so returning users see the new walkthrough once.
+const STORAGE_KEY = 'docgen.tour.completed.v2';
 
 const STEPS: TourStep[] = [
   {
@@ -40,18 +41,18 @@ const STEPS: TourStep[] = [
     title: 'Welcome to Smart Life DocGen',
     body: (
       <>
-        This turns Tawal paperwork into a two-minute job. Let me show you around —
-        it takes about 40 seconds.
+        Two jobs live here: the <b>commercial pipeline</b> (GCL → BOQ → Work Order → PAC)
+        and <b>MOPs</b>. Let me show you around — about a minute.
       </>
     ),
   },
   {
     id: 'nav',
-    title: 'Two ways in, one pipeline',
+    title: 'Two ways into the pipeline',
     body: (
       <>
-        <b>Create GCL</b> starts from an approved scope sheet. <b>Upload GCL</b> starts
-        from a GCL that has already been signed. Both end up in the same place.
+        <b>Create GCL</b> starts from an approved scope sheet. <b>Upload GCL</b> starts from
+        one that has already been signed. Both end in the same place.
       </>
     ),
     target: 'nav',
@@ -59,31 +60,64 @@ const STEPS: TourStep[] = [
     route: '/create-gcl',
   },
   {
-    id: 'pipeline',
-    title: 'The pipeline, always visible',
-    body: <>Every package moves through these five documents. The lit segments are done.</>,
-    target: 'pipeline',
-    placement: 'bottom',
-  },
-  {
     id: 'drop',
     title: 'Start by dropping a file',
     body: (
       <>
-        Drag the scope sheet in, or click to browse. Nothing is saved yet — you get a
-        full preview of what was read before anything is committed.
+        Drag it in, or click to browse. Nothing is saved yet — you get a full preview of what
+        was read before anything is committed.
       </>
     ),
     target: 'dropzone',
     placement: 'bottom',
   },
   {
+    id: 'quantity',
+    title: 'You choose what the money is based on',
+    body: (
+      <>
+        Once the document is read, its numeric columns appear with their printed headings —
+        <i> Design QTY</i>, <i>As Bulit</i>, whatever the file actually says. Pick which one
+        drives the totals. Nothing is hard-coded, and you can change it later.
+      </>
+    ),
+    target: 'dropzone',
+    placement: 'bottom',
+  },
+  {
+    id: 'projects',
+    title: 'Projects and MOPs',
+    body: (
+      <>
+        Create a project, choose its type — <b>RMS</b>, <b>CCTV</b>, <b>SIM Swap</b> or{' '}
+        <b>Smart Locks</b> — and the right MOB categories come with it. SIM Swap is survey-only;
+        the rest also get Installation and PAT.
+      </>
+    ),
+    target: 'nav-projects',
+    placement: 'right',
+    route: '/projects',
+  },
+  {
+    id: 'mop',
+    title: 'Generating a MOP',
+    body: (
+      <>
+        Pick a project in the sidebar, choose the MOB, fill the five Document Control fields.
+        You get a Word file and a PDF built from Tawal's own template — or use{' '}
+        <b>Bulk from Excel</b> for many sites at once.
+      </>
+    ),
+    target: 'nav-projects',
+    placement: 'right',
+  },
+  {
     id: 'library',
     title: 'Everything you make lives here',
     body: (
       <>
-        Packages keeps every job with its documents. <b>Price List</b> holds the UPL that
-        drives the pricing — import a new version whenever Tawal issues one.
+        <b>Packages</b> keeps every job with its documents. <b>Price List</b> holds the UPL
+        that drives the pricing.
       </>
     ),
     target: 'nav-library',

@@ -61,22 +61,30 @@ export class GclService {
     const lines = parsed.lines.map((l) => {
       const upl = prices.get(l.itemCode.toUpperCase());
       const unitPrice = upl ? Number(upl.price) : 0;
-      return {
-        ...l,
-        unitPrice,
-        priceFound: !!upl,
-        designTotal: unitPrice * l.designQty,
-        asBuiltTotal: unitPrice * l.asBuiltQty,
-      };
+
+      // What the package would cost priced against each column, so the choice
+      // is made with the money visible rather than guessed at.
+      const totals: Record<string, number> = {};
+      for (const c of parsed.quantityColumns) {
+        totals[c.key] = unitPrice * (l.quantities[c.key] ?? 0);
+      }
+
+      return { ...l, unitPrice, priceFound: !!upl, totals };
     });
+
+    const columnTotals = parsed.quantityColumns.map((c) => ({
+      ...c,
+      total: lines.reduce((a, l) => a + (l.totals[c.key] ?? 0), 0),
+      quantity: lines.reduce((a, l) => a + (l.quantities[c.key] ?? 0), 0),
+    }));
 
     return {
       ...parsed,
       lines,
-      totals: {
-        design: lines.reduce((a, l) => a + l.designTotal, 0),
-        asBuilt: lines.reduce((a, l) => a + l.asBuiltTotal, 0),
-      },
+      quantityColumns: columnTotals,
+      /** Second column on a standard GCL is As-Built, which is what Tawal bills. */
+      suggestedFieldKey:
+        parsed.quantityColumns[1]?.key ?? parsed.quantityColumns[0]?.key ?? null,
       unpricedItems: lines.filter((l) => !l.priceFound).map((l) => l.itemCode),
     };
   }

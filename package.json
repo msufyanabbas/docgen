@@ -9,11 +9,14 @@
     "deploy:setup": "bash scripts/server-setup.sh",
     "deploy:status": "bash scripts/status.sh",
     "deploy:logs": "bash scripts/logs.sh",
+    "deploy:watch": "bash scripts/watch.sh",
     "deploy:rollback": "bash scripts/rollback.sh",
     "deploy:ssh": "bash scripts/ssh.sh",
     "dev:backend": "npm --prefix backend run start:dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "install:all": "npm --prefix backend install && npm --prefix frontend install"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

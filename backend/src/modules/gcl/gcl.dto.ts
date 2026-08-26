@@ -53,6 +53,8 @@ export class CreateGclDto {
   @IsOptional() @IsString() uplVersion?: string;
   @IsOptional() @IsString() woSequence?: string;
   @IsOptional() @IsEnum(QuantitySource) quantitySource?: QuantitySource;
+  /** Which parsed column drives pricing, e.g. "col12". */
+  @IsOptional() @IsString() quantityFieldKey?: string;
 
   @IsOptional() @Type(() => Date) @IsDate() gclDate?: Date;
   @IsOptional() @Type(() => Date) @IsDate() handoverDate?: Date;

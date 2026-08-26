@@ -72,7 +72,9 @@ export default function PackagesPage() {
                   </td>
                   <td className="td max-w-xs truncate font-mono text-xs text-fg-muted" title={p.woNumber}>{p.woNumber}</td>
                   <td className="td">{p.poNumber ?? '—'}</td>
-                  <td className="td text-xs">{p.quantitySource === 'AS_BUILT' ? 'As-Built' : 'Design'}</td>
+                  <td className="td text-xs">
+                    {p.quantityFieldLabel ?? (p.quantitySource === 'AS_BUILT' ? 'As-Built' : 'Design')}
+                  </td>
                   <td className="td text-right">{p._count?.lines ?? p.lines?.length ?? 0}</td>
                   <td className="td text-right font-semibold">{money(p.netAmount, p.currency)}</td>
                   <td className="td"><StatusBadge status={p.status} /></td>

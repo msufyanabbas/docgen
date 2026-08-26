@@ -30,6 +30,10 @@ services:
       DEFAULT_CONTRACTOR_NAME: SMART LIFE
       DEFAULT_PROJECT_NAME: SMART TOWER
       AUTO_SEED_UPL: "true"
+      JWT_SECRET: dev-only-change-me
+      ADMIN_EMAIL: admin@smart-life.sa
+      ADMIN_PASSWORD: ChangeMe123!
+      SOFFICE_PATH: /usr/bin/soffice
     volumes:
       - storage:/app/storage
     ports:

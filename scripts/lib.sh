@@ -45,11 +45,22 @@ load_config() {
 
 # --- ssh -----------------------------------------------------------------
 #
-# One master connection, reused by every later command. With password auth you
-# type it once; without multiplexing every step would prompt again, and sshpass
-# isn't available on Windows Git Bash.
+# Connection multiplexing lets several commands share one authenticated session,
+# so a password is typed once. It relies on unix domain sockets, which the SSH
+# shipped with Git for Windows cannot do — you get
+#   "mux_client_request_session: read from master failed: Connection reset by peer"
+# and then a prompt per command. So multiplexing is only enabled where it works,
+# and every script is written to need a single session anyway.
 #
 SSH_OPTS=()
+USE_MUX=1
+
+is_windows_shell() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 setup_ssh() {
   SSH_OPTS=(
@@ -58,19 +69,36 @@ setup_ssh() {
     -o ServerAliveCountMax=6
     -o ConnectTimeout=20
     -o StrictHostKeyChecking=accept-new
-    -o ServerAliveInterval=30
-    -o ServerAliveCountMax=6
-    -o ConnectTimeout=20
-    -o StrictHostKeyChecking=accept-new
   )
+
+  if is_windows_shell; then
+    USE_MUX=0
+  else
+    # Clear a socket left behind by a killed run, or ssh refuses to reuse it.
+    local sock="${CONTROL_PATH//\%r/$SERVER_USER}"
+    sock="${sock//\%h/$SERVER_HOST}"; sock="${sock//\%p/$SERVER_PORT}"
+    [ -S "$sock" ] && { ssh -O exit -o "ControlPath=$sock" "$SERVER" 2>/dev/null || rm -f "$sock"; }
+
+    SSH_OPTS+=(
+      -o ControlMaster=auto
+      -o "ControlPath=$CONTROL_PATH"
+      -o ControlPersist=15m
+    )
+  fi
+
   if [ -n "${SSH_KEY:-}" ]; then
     [ -f "${SSH_KEY/#\~/$HOME}" ] || die "SSH key not found: $SSH_KEY"
     SSH_OPTS+=(-i "${SSH_KEY/#\~/$HOME}")
   fi
 
   step "Connecting to $SERVER"
-  if [ -z "${SSH_KEY:-}" ]; then
-    info "Password auth — you'll be asked once, then the connection is reused."
+  if [ -n "${SSH_KEY:-}" ]; then
+    info "Key auth"
+  elif [ "$USE_MUX" = "0" ]; then
+    info "Password auth on Windows — this script uses a single session, so you"
+    info "type it once. Set SSH_KEY in deploy.config to stop being asked at all."
+  else
+    info "Password auth — asked once, then the connection is reused."
   fi
 
   ssh "${SSH_OPTS[@]}" "$SERVER" "echo connected >/dev/null" \
@@ -79,7 +107,24 @@ setup_ssh() {
 }
 
 close_ssh() {
+  [ "$USE_MUX" = "1" ] || return 0
   ssh "${SSH_OPTS[@]}" -O exit "$SERVER" 2>/dev/null || true
+}
+
+# Runs one remote bash script, streaming its output. This is the primitive the
+# scripts are built on: one ssh invocation means one password prompt, whether or
+# not multiplexing is available.
+#
+#   remote_script VAR=value VAR2=value <<'EOF'
+#   ...remote bash...
+#   EOF
+remote_script() {
+  local env_prefix=""
+  while [ $# -gt 0 ]; do
+    env_prefix+="$1 "
+    shift
+  done
+  ssh "${SSH_OPTS[@]}" "$SERVER" "${env_prefix}bash -se"
 }
 
 # Run a command on the server.

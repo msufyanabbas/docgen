@@ -1,4 +1,7 @@
-FROM node:22-bookworm-slim AS base
+# Pinned by digest: the mutable tag gets republished on Debian security updates,
+# which invalidates every layer below and re-downloads Chromium + LibreOffice.
+# Bump deliberately when you want a newer base.
+FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS base
 
 # Puppeteer must not fetch its own Chromium — we install the system one below.
 # Both variable names are set: the first is current, the second is the legacy
@@ -8,14 +11,21 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true \
 
 # Chromium plus the font families the templates ask for. fonts-noto-core is what
 # makes the PAC's Arabic column render; without it Chromium draws empty boxes.
+# chromium  -> renders the BOQ / WO / PAC PDFs
+# libreoffice-writer -> converts the filled MOP .docx to PDF, so the Word file and
+#                       the PDF Tawal receives can never drift apart
+# fonts-noto-core    -> Arabic in the PAC; without it Chromium draws empty boxes
 RUN apt-get update && apt-get install -y --no-install-recommends \
       chromium fonts-liberation fonts-dejavu-core \
       fonts-noto-core fonts-noto-color-emoji \
       libnss3 libatk-bridge2.0-0 libgtk-3-0 libasound2 \
+      libreoffice-writer-nogui libreoffice-core-nogui \
+      default-jre-headless \
       openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
+    SOFFICE_PATH=/usr/bin/soffice
 WORKDIR /app
 
 FROM base AS deps
@@ -39,6 +49,9 @@ COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/prisma ./prisma
 COPY package.json package-lock.json* ./
 COPY assets ./assets
+# The MOP templates are Tawal's own .docx files with placeholders — the generator
+# reads them at runtime.
+COPY templates ./templates
 # src + tsconfig are kept so `npx prisma db seed` still works inside the container;
 # normal boot auto-seeds an empty price list and never needs them.
 COPY --from=build /app/src ./src

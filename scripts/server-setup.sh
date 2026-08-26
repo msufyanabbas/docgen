@@ -18,9 +18,15 @@ info "server $SERVER  ·  domain ${DOMAIN:-<not set>}  ·  port $HOST_HTTP_PORT"
 setup_ssh
 trap close_ssh EXIT
 
+if [ "$USE_MUX" = "0" ] && [ -z "${SSH_KEY:-}" ]; then
+  warn "Windows + password auth: this setup script pauses for your answers, so it"
+  warn "cannot run as one session — expect a prompt per step. It only runs once."
+  warn "Set up a key (see DEPLOYMENT.md) and you'll never be asked again."
+fi
+
 # ------------------------------------------------------------------ packages
 step "Base packages"
-rexec bash -se <<'ENDSSH'
+remote_script <<'ENDSSH'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
@@ -61,7 +67,7 @@ info "${MEM}MB RAM, ${SWAP}MB swap"
 if [ "$MEM" -lt 2048 ] && [ "$SWAP" -lt 2048 ]; then
   warn "Docker builds of this app want ~2GB. Without it the vite build gets OOM-killed."
   if confirm "Add a 2GB swapfile?"; then
-    rexec bash -se <<'ENDSSH'
+    remote_script <<'ENDSSH'
 set -euo pipefail
 if [ ! -f /swapfile ]; then
   fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
@@ -85,7 +91,7 @@ fi
 step "Directories"
 # /var/www usually belongs to root, so create with sudo when we aren't root and
 # hand ownership to the deploy user — later steps must write without sudo.
-rexec "DEPLOY='$(rpath "$DEPLOY_DIR")' SRC='$(rpath "$SRC_DIR")' bash -se" <<'ENDSSH'
+remote_script "DEPLOY='$(rpath "$DEPLOY_DIR")'" "SRC='$(rpath "$SRC_DIR")'" <<'ENDSSH'
 set -euo pipefail
 SUDO=""
 [ "$(id -u)" -ne 0 ] && SUDO="sudo"
@@ -124,7 +130,7 @@ if [ -n "${DOMAIN:-}" ]; then
     rcopy "$TMP" "$SERVER:/tmp/tawal-docgen.conf"
     rm -f "$TMP"
 
-    rexec bash -se <<'ENDSSH'
+    remote_script <<'ENDSSH'
 set -euo pipefail
 mv /tmp/tawal-docgen.conf /etc/nginx/sites-available/tawal-docgen
 ln -sfn /etc/nginx/sites-available/tawal-docgen /etc/nginx/sites-enabled/tawal-docgen

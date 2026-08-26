@@ -43,9 +43,30 @@ HOST_HTTP_PORT="8090"            # must not clash with other apps on the box
 DOMAIN="docgen.smart-life.sa"
 ```
 
-**Password servers are fine.** The scripts open one SSH connection you authenticate
-once and reuse it for every step (`ControlMaster`), because `sshpass` doesn't exist on
-Windows Git Bash.
+**Password servers are fine.** Each script runs its work as a *single* remote session,
+so you type the password once — on Linux, macOS and Windows alike.
+
+**A key is still better.** Git Bash on Windows cannot do SSH connection multiplexing,
+so anything interactive (`deploy:setup`) will ask per step. Two minutes to fix:
+
+```bash
+ssh-keygen -t ed25519 -C "docgen-deploy"        # Enter through the prompts
+ssh-copy-id root@147.79.114.76                  # password, one last time
+```
+
+No `ssh-copy-id` on Windows? Do it manually:
+
+```bash
+cat ~/.ssh/id_ed25519.pub | ssh root@147.79.114.76 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+```
+
+Then in `deploy.config`:
+
+```bash
+SSH_KEY="~/.ssh/id_ed25519"
+```
+
+You will never be prompted again, and GitHub Actions needs key auth anyway.
 
 **Private repo?** Create a fine-grained PAT with read-only *Contents* access and set
 `GIT_TOKEN`. It's used for the clone and then stripped from `.git/config` so it isn't
@@ -77,6 +98,7 @@ npm run deploy
 git push                    # push your work
 npm run deploy              # build and release on the server
 
+npm run deploy:watch        # re-attach to a build already running
 npm run deploy:status       # containers, health, deployed commit, disk
 npm run deploy:logs         # follow all logs
 npm run deploy:logs backend # one service
@@ -106,6 +128,11 @@ npm run deploy -- --skip-pull     # re-release what's already checked out
 5. **Health check** — polls `/api/health` for 90s. If it never answers, you get the
    backend logs and a non-zero exit.
 6. **Prune** — removes dangling images.
+
+The whole thing runs **detached** on the server via `setsid`, with your terminal just
+following the log. Builds take minutes, and a dropped SSH connection would otherwise
+kill the build halfway through. Close the laptop if you like — `npm run deploy:watch`
+picks the log back up.
 
 **Nothing is stopped until the build succeeds.** The previous deploy keeps serving
 while the new images build, and `up -d` recreates only what changed — roughly a second
@@ -259,11 +286,27 @@ docker run --rm -v tawal-docgen_storage:/data -v ~/backups:/out alpine \
 
 **`deploy.config not found`** — `cp deploy.config.example deploy.config` and fill it in.
 
-**Password asked more than once** — the multiplexed connection didn't establish. Check
-`/tmp/tawal-docgen-ssh-*` is writable, or set `SSH_KEY` and use key auth.
+**`mux_client_request_session: read from master failed: Connection reset by peer`** —
+Git Bash on Windows can't multiplex SSH connections. `deploy`, `status`, `logs` and
+`rollback` each run as one session so this doesn't affect them; `deploy:setup` is
+interactive and will ask per step. Set `SSH_KEY` to stop the prompts entirely.
+
+**`ControlSocket ... already exists, disabling multiplexing`** — a stale socket from a
+killed run. `setup_ssh` clears it automatically now; if you see it on Linux/macOS,
+`rm -f /tmp/tawal-docgen-ssh-*`.
+
+**Password asked more than once** — expected on Windows for `deploy:setup` only. If it
+happens for `deploy`, you're on an older copy of the scripts; the current one makes a
+single ssh call.
 
 **Build killed / "signal 9"** — out of memory. Run `npm run deploy:setup` and accept the
 swapfile.
+
+**`Read from remote host: Connection reset by peer` during the build** — the SSH
+connection dropped. The build is detached (`setsid`), so it keeps going; the script
+reconnects and resumes following the log by itself. If your terminal died entirely,
+`npm run deploy:watch` re-attaches. Docker's layer cache means a re-run picks up where
+the last one got to anyway.
 
 **Health check fails, logs show `P1001`** — the backend can't reach Postgres. Check the
 db container is healthy: `npm run deploy:status`.

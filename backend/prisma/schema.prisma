@@ -54,6 +54,16 @@ model Package {
   quantitySource QuantitySource @default(AS_BUILT)
   uplVersion     String         @default("v1")
 
+  /// Which parsed column drives pricing. Set by the user after the document is
+  /// read, rather than assuming a fixed "Design"/"As-Built" pair — different
+  /// GCLs and scope sheets label their quantity columns differently.
+  quantityFieldKey   String?
+  quantityFieldLabel String?
+
+  /// Every numeric column the parser found, so the choice can be revisited
+  /// without re-uploading: [{ key, label, total }]
+  quantityFields Json?
+
   // --- Identity (parsed from the GCL header) ---
   woNumber       String
   siteNo         String
@@ -126,7 +136,10 @@ model PackageLine {
 
   designQty  Decimal @db.Decimal(12, 2)
   asBuiltQty Decimal @db.Decimal(12, 2)
-  quantity   Decimal @db.Decimal(12, 2) // resolved from quantitySource
+  quantity   Decimal @db.Decimal(12, 2) // resolved from the selected column
+
+  /// All quantity columns for this line, keyed as in Package.quantityFields.
+  quantities Json?
 
   serialNumber String?
   tagNumber    String    @default("N/A")
@@ -164,4 +177,155 @@ model GeneratedDocument {
 
   @@index([packageId, type])
   @@map("generated_documents")
+}
+
+
+/* ===========================================================================
+   Access control — the whole platform is behind login, not just MOP.
+   An Admin creates PM accounts; PMs can use everything except user management.
+   =========================================================================== */
+
+enum UserRole {
+  ADMIN
+  PM
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         UserRole @default(PM)
+  isActive     Boolean  @default(true)
+  mustChangePassword Boolean @default(true)
+  lastLoginAt  DateTime?
+
+  createdById  String?
+  createdBy    User?    @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers User[]   @relation("UserCreatedBy")
+
+  mopDocuments MopDocument[]
+  mopBatches   MopBatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+  @@map("users")
+}
+
+/* ===========================================================================
+   Method of Procedure (MOP)
+
+   Project (RMS, CCTV, SIM Swap, Smart Locks, ...) -> Mob (Survey/Installation,
+   PAT, ...) -> MopDocument. Projects and MOBs are data, not code, so new ones
+   are added from the UI without a deploy.
+   =========================================================================== */
+
+model Project {
+  id   String @id @default(uuid())
+  name String
+  slug String @unique
+
+  /// RMS | CCTV | SIM_SWAP | SMART_LOCKS — decides which MOBs are available.
+  /// See src/modules/projects/project-types.ts.
+  type String @default("RMS")
+
+  description String?
+  colour      String? // sidebar accent
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  mobs      Mob[]
+  documents MopDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("projects")
+}
+
+model Mob {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name      String
+  slug      String
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  /// SURVEY | INSTALLATION | PAT — which stage of the parent project type.
+  mobType String @default("SURVEY")
+
+  /// Which .docx under backend/templates/mop/ this MOB renders from.
+  templateKey String
+
+  /// Pre-filled default for the TCN Summary field.
+  defaultTcnSummary String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents MopDocument[]
+
+  @@unique([projectId, slug])
+  @@map("mobs")
+}
+
+enum SiteImpact {
+  NO
+  YES
+}
+
+model MopDocument {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mobId     String
+  mob       Mob     @relation(fields: [mobId], references: [id], onDelete: Cascade)
+
+  // --- the five Document Control fields ---
+  tcnSummary    String
+  siteId        String
+  requesterName String
+  pmName        String
+  siteImpact    SiteImpact @default(NO)
+  siteImpactNote String?   // e.g. "NO - No Impact"
+
+  docxFileName String?
+  docxPath     String?
+  pdfFileName  String?
+  pdfPath      String?
+
+  batchId String?
+  batch   MopBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, mobId])
+  @@index([siteId])
+  @@map("mop_documents")
+}
+
+model MopBatch {
+  id       String @id @default(uuid())
+  fileName String
+  total    Int    @default(0)
+  succeeded Int   @default(0)
+  failed   Int    @default(0)
+  errors   Json?
+  zipPath  String?
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  documents MopDocument[]
+  createdAt DateTime @default(now())
+
+  @@map("mop_batches")
 }

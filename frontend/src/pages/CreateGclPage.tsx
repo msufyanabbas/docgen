@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, FileSignature, PenLine } from 'lucide-react';
 import FileDrop from '../components/FileDrop';
 import SignatureInput from '../components/SignatureInput';
+import QuantityFieldPicker from '../components/QuantityFieldPicker';
 import { Alert, Spinner } from '../components/ui/Feedback';
 import { Field, Input, Select, Textarea, Checkbox } from '../components/ui/Field';
 import { Button } from '../components/ui/Button';
@@ -28,6 +29,7 @@ export default function CreateGclPage() {
     contractorPmId: '',
     mspRepName: '',
     mspSignDate: '',
+    quantityFieldKey: '',
     quantitySource: 'AS_BUILT' as QuantitySource,
     notes: '',
     overwrite: false,
@@ -51,6 +53,7 @@ export default function CreateGclPage() {
       const result = await api.upload<ScopePreview>('/gcl/scope/preview', f);
       setPreview(result);
       setSelected(result.sites.map(siteKey)); // everything selected by default
+      if (result.suggestedFieldKey) set('quantityFieldKey', result.suggestedFieldKey);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -87,7 +90,9 @@ export default function CreateGclPage() {
     }
   }
 
-  const total = chosen.reduce((a, s) => a + s.total, 0);
+  const total = form.quantityFieldKey
+    ? chosen.reduce((a, s) => a + (s.columnTotals?.[form.quantityFieldKey] ?? 0), 0)
+    : chosen.reduce((a, s) => a + s.total, 0);
   const unpriced = [...new Set(chosen.flatMap((s) => s.unpricedItems))];
 
   return (
@@ -250,6 +255,20 @@ export default function CreateGclPage() {
             <div className="surface-head">
               <h2 className="text-sm font-semibold text-fg">GCL details</h2>
             </div>
+            {preview.quantityColumns.length > 0 && (
+              <div className="border-b border-line/60 px-5 py-5">
+                <QuantityFieldPicker
+                  columns={preview.quantityColumns.map((c) => ({
+                    ...c,
+                    total: chosen.reduce((a, s) => a + (s.columnTotals?.[c.key] ?? 0), 0),
+                  }))}
+                  value={form.quantityFieldKey}
+                  onChange={(k) => set('quantityFieldKey', k)}
+                  hint="Numeric columns found in the scope sheet. The one you pick becomes the quantity on the GCL and drives the downstream totals."
+                />
+              </div>
+            )}
+
             <div className="grid gap-4 px-5 py-5 md:grid-cols-4">
               <Field label="Region" hint="Not present in the scope sheet">
                 <Input placeholder="West" value={form.region}
@@ -263,13 +282,7 @@ export default function CreateGclPage() {
                 <Input type="date" value={form.gclDate}
                        onChange={(e) => set('gclDate', e.target.value)} />
               </Field>
-              <Field label="Quantity basis for pricing">
-                <Select value={form.quantitySource}
-                        onChange={(e) => set('quantitySource', e.target.value)}>
-                  <option value="AS_BUILT">As-Built QTY</option>
-                  <option value="DESIGN">Design QTY</option>
-                </Select>
-              </Field>
+
 
               <Field label="Contractor PM name">
                 <Input value={form.contractorPmName}

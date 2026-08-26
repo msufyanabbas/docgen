@@ -7,6 +7,18 @@ import { ParsedGcl } from '../gcl/gcl.parser';
 import { CreateFromGclDto, UpdatePackageDto, QueryPackagesDto } from './packages.dto';
 
 const D = (n: number | string | Prisma.Decimal) => new Prisma.Decimal(n as any);
+
+/** The chosen column if the line has it, else the legacy Design/As-Built pair. */
+function resolveQuantity(
+  line: { quantities?: Record<string, number>; designQty: number; asBuiltQty: number },
+  fieldKey: string | null,
+  fallback: QuantitySource,
+): number {
+  if (fieldKey && line.quantities && line.quantities[fieldKey] !== undefined) {
+    return line.quantities[fieldKey];
+  }
+  return fallback === QuantitySource.DESIGN ? line.designQty : line.asBuiltQty;
+}
 const round2 = (d: Prisma.Decimal) => d.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
 @Injectable()
@@ -24,10 +36,11 @@ export class PackagesService {
   /**
    * Turns a parsed GCL into a priced package.
    *
-   * Quantity source note: Tawal's own Work Order for site 241-00-102R11 totals
-   * 11,216.00 SAR, which is the AS-BUILT quantity times the UPL price
-   * (SMART-TWR-025 was designed 2 / built 1). Design quantities would give
-   * 13,761.00. AS_BUILT is therefore the default, and DESIGN is one flag away.
+   * The pricing column is whatever the user picked after reading the document —
+   * the parser reports the columns it found and their printed labels, rather
+   * than the code assuming a Design/As-Built pair. When nothing is chosen we
+   * fall back to the second column, because Tawal's own Work Order for
+   * 241-00-102R11 totals 11,216.00 (As-Built) and not 13,761.00 (Design).
    */
   async createFromGcl(
     parsed: ParsedGcl,
@@ -56,7 +69,16 @@ export class PackagesService {
     const uplVersion = dto.uplVersion ?? 'v1';
     const defaults = this.config.get('defaults');
 
-    const priced = await this.priceLines(parsed.lines, quantitySource, uplVersion);
+    const columns = parsed.quantityColumns ?? [];
+    // Explicit choice wins; otherwise the second column, which is As-Built on a
+    // standard GCL, and the first when a document only has one.
+    const fieldKey =
+      dto.quantityFieldKey && columns.some((c) => c.key === dto.quantityFieldKey)
+        ? dto.quantityFieldKey
+        : (columns[1]?.key ?? columns[0]?.key ?? null);
+    const fieldLabel = columns.find((c) => c.key === fieldKey)?.label ?? null;
+
+    const priced = await this.priceLines(parsed.lines, fieldKey, quantitySource, uplVersion);
     const warnings = [...parsed.warnings, ...priced.warnings];
 
     const gross = priced.lines.reduce((a, l) => a.plus(l.lineTotal), D(0));
@@ -80,6 +102,9 @@ export class PackagesService {
         currency: defaults.currency,
         quantitySource,
         uplVersion,
+        quantityFieldKey: fieldKey,
+        quantityFieldLabel: fieldLabel,
+        quantityFields: columns.length ? (columns as any) : Prisma.JsonNull,
 
         gclDate: parsed.gclDate,
         serviceDate,
@@ -113,6 +138,7 @@ export class PackagesService {
             designQty: D(l.designQty),
             asBuiltQty: D(l.asBuiltQty),
             quantity: D(l.quantity),
+            quantities: (l.quantities ?? {}) as any,
             serialNumber: l.serialNumber,
             tagNumber: 'N/A',
             serviceDate,
@@ -147,6 +173,7 @@ export class PackagesService {
 
   private async priceLines(
     lines: ParsedGcl['lines'],
+    fieldKey: string | null,
     quantitySource: QuantitySource,
     uplVersion: string,
   ) {
@@ -166,7 +193,7 @@ export class PackagesService {
         );
       }
 
-      const quantity = quantitySource === QuantitySource.DESIGN ? l.designQty : l.asBuiltQty;
+      const quantity = resolveQuantity(l, fieldKey, quantitySource);
 
       return {
         ...l,
@@ -202,8 +229,15 @@ export class PackagesService {
     for (const line of pkg.lines) {
       const upl = priceMap.get(line.itemCode.toUpperCase());
       const unitPrice = upl ? new Prisma.Decimal(upl.price) : line.unitPrice;
+
+      const stored = (line.quantities ?? {}) as Record<string, number>;
+      const fromField =
+        pkg.quantityFieldKey && stored[pkg.quantityFieldKey] !== undefined
+          ? D(stored[pkg.quantityFieldKey])
+          : null;
       const quantity =
-        pkg.quantitySource === QuantitySource.DESIGN ? line.designQty : line.asBuiltQty;
+        fromField ??
+        (pkg.quantitySource === QuantitySource.DESIGN ? line.designQty : line.asBuiltQty);
       const lineTotal = round2(unitPrice.mul(quantity));
       gross = gross.plus(lineTotal);
 

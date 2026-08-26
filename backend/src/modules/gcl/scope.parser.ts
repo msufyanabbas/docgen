@@ -12,10 +12,19 @@ import * as ExcelJS from 'exceljs';
  * Rows are grouped by site, because one site = one GCL.
  */
 
+export interface QuantityColumn {
+  key: string;
+  label: string;
+  x: number;
+}
+
 export interface ScopeLine {
   itemCode: string;
   description: string;
   unit: string | null;
+  /** Every numeric column on the row, keyed by QuantityColumn.key. */
+  quantities: Record<string, number>;
+  /** The column the sheet calls "updated Qty", kept for convenience. */
   qty: number;
   workType: string | null;
   /** Derived from Work type: "... Hardware" -> Tangible, "... Services" -> Service. */
@@ -35,6 +44,8 @@ export interface ScopeSite {
 
 export interface ParsedScope {
   sites: ScopeSite[];
+  /** Numeric columns the user can price against. */
+  quantityColumns: QuantityColumn[];
   warnings: string[];
 }
 
@@ -136,6 +147,38 @@ export async function parseScopeWorkbook(source: string | Buffer): Promise<Parse
     );
   }
 
+  /*
+   * Any other numeric column is offered as a pricing basis too — sheets vary,
+   * and "updated Qty" is not always the one that should be billed.
+   */
+  const mappedCols = new Set(Object.values(map));
+  const quantityColumns: QuantityColumn[] = [];
+  const headerCells = ws.getRow(headerRow);
+
+  headerCells.eachCell({ includeEmpty: false }, (cell, col) => {
+    const label = cellText(cell).trim();
+    if (!label) return;
+    const isKnownQty = map.qty === col;
+    if (!isKnownQty && mappedCols.has(col)) return;
+
+    // Treat a column as numeric if the first few data rows parse as numbers.
+    let numeric = 0;
+    let seen = 0;
+    for (let r = headerRow + 1; r <= Math.min(headerRow + 12, ws.rowCount); r++) {
+      const raw = cellText(ws.getRow(r).getCell(col)).trim();
+      if (!raw) continue;
+      seen++;
+      if (/^-?[\d,.]+$/.test(raw)) numeric++;
+    }
+    if (isKnownQty || (seen > 0 && numeric / seen >= 0.8)) {
+      quantityColumns.push({ key: `col${col}`, label, x: col });
+    }
+  });
+
+  if (!quantityColumns.length && map.qty) {
+    quantityColumns.push({ key: `col${map.qty}`, label: 'Quantity', x: map.qty });
+  }
+
   const headerWords = new Set(
     Object.values(COLUMN_ALIASES).flat().map((a) => a.replace(/\s+/g, '')),
   );
@@ -172,14 +215,18 @@ export async function parseScopeWorkbook(source: string | Buffer): Promise<Parse
 
     const site = sites.get(key)!;
     const workType = get(row, 'workType') || null;
-    const qty = map.qty ? cellNumber(row.getCell(map.qty)) : 0;
 
+    const quantities: Record<string, number> = {};
+    for (const c of quantityColumns) quantities[c.key] = cellNumber(row.getCell(c.x));
+
+    const qty = map.qty ? cellNumber(row.getCell(map.qty)) : Object.values(quantities)[0] ?? 0;
     if (!qty) warnings.push(`${key} / ${rawCode}: quantity is 0 on row ${r}.`);
 
     site.lines.push({
       itemCode: rawCode.toUpperCase(),
       description: get(row, 'description'),
       unit: get(row, 'unit') || null,
+      quantities,
       qty,
       workType,
       itemType: itemTypeFromWorkType(workType),
@@ -192,5 +239,5 @@ export async function parseScopeWorkbook(source: string | Buffer): Promise<Parse
     warnings.push('Some rows carry no Site Code or Site ID and were grouped together.');
   }
 
-  return { sites: [...sites.values()], warnings };
+  return { sites: [...sites.values()], quantityColumns, warnings };
 }

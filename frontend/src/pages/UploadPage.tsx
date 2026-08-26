@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, ScanLine } from 'lucide-react';
 import FileDrop from '../components/FileDrop';
+import QuantityFieldPicker from '../components/QuantityFieldPicker';
 import { Alert, Spinner } from '../components/ui/Feedback';
 import { Field, Input, Select, Textarea, Checkbox } from '../components/ui/Field';
 import { Button } from '../components/ui/Button';
@@ -17,6 +18,7 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
+    quantityFieldKey: '',
     quantitySource: 'AS_BUILT' as QuantitySource,
     handoverDate: '',
     startDate: '',
@@ -38,6 +40,8 @@ export default function UploadPage() {
     try {
       const result = await api.upload<GclPreview>('/gcl/preview', f);
       setPreview(result);
+      // Pre-select what the document suggests, but leave the choice open.
+      if (result.suggestedFieldKey) set('quantityFieldKey', result.suggestedFieldKey);
       // The GCL date is the natural End Date; pre-fill so the form is one field lighter.
       if (result.gclDate) set('endDate', result.gclDate.slice(0, 10));
     } catch (e) {
@@ -62,7 +66,7 @@ export default function UploadPage() {
   }
 
   const selectedTotal =
-    preview && (form.quantitySource === 'DESIGN' ? preview.totals.design : preview.totals.asBuilt);
+    preview?.quantityColumns.find((c) => c.key === form.quantityFieldKey)?.total ?? 0;
 
   return (
     <div className="space-y-6">
@@ -132,8 +136,9 @@ export default function UploadPage() {
                     <th className="th w-10">#</th>
                     <th className="th">Item Code</th>
                     <th className="th">Description</th>
-                    <th className="th text-right">Design</th>
-                    <th className="th text-right">As-Built</th>
+                    {preview.quantityColumns.map((c) => (
+                      <th key={c.key} className="th text-right">{c.label}</th>
+                    ))}
                     <th className="th text-right">Unit Price</th>
                     <th className="th text-right">Line Total</th>
                   </tr>
@@ -146,11 +151,19 @@ export default function UploadPage() {
                       <td className="td max-w-md truncate text-fg-muted" title={l.description}>
                         {l.description}
                       </td>
-                      <td className="td text-right">{l.designQty.toFixed(2)}</td>
-                      <td className="td text-right font-semibold">{l.asBuiltQty.toFixed(2)}</td>
+                      {preview.quantityColumns.map((c) => (
+                        <td
+                          key={c.key}
+                          className={`td text-right ${
+                            form.quantityFieldKey === c.key ? 'font-semibold text-fg' : ''
+                          }`}
+                        >
+                          {(l.quantities[c.key] ?? 0).toFixed(2)}
+                        </td>
+                      ))}
                       <td className="td text-right">{l.priceFound ? money(l.unitPrice, '') : '—'}</td>
                       <td className="td text-right font-semibold">
-                        {money(form.quantitySource === 'DESIGN' ? l.designTotal : l.asBuiltTotal, '')}
+                        {money(l.totals?.[form.quantityFieldKey] ?? 0, '')}
                       </td>
                     </tr>
                   ))}
@@ -166,32 +179,11 @@ export default function UploadPage() {
             </div>
 
             <div className="space-y-5 px-5 py-5">
-              <Field
-                label="Quantity source"
-                hint="Tawal's signed Work Order for this PO reconciles against As-Built quantities. Design is available when a PO is billed on design scope."
-              >
-                <div className="flex gap-3">
-                  {(['AS_BUILT', 'DESIGN'] as QuantitySource[]).map((q) => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => set('quantitySource', q)}
-                      className={`flex-1 rounded-lg border px-4 py-3 text-left transition-colors ${
-                        form.quantitySource === q
-                          ? 'border-cyan-brand bg-cyan-brand/5 ring-1 ring-cyan-brand'
-                          : 'border-line bg-card hover:bg-canvas'
-                      }`}
-                    >
-                      <div className="text-sm font-semibold text-fg">
-                        {q === 'AS_BUILT' ? 'As-Built QTY' : 'Design QTY'}
-                      </div>
-                      <div className="mt-0.5 text-xs text-fg-muted">
-                        {money(q === 'DESIGN' ? preview.totals.design : preview.totals.asBuilt)}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </Field>
+              <QuantityFieldPicker
+                columns={preview.quantityColumns}
+                value={form.quantityFieldKey}
+                onChange={(k) => set('quantityFieldKey', k)}
+              />
 
               <div className="grid gap-4 md:grid-cols-3">
                 <Field label="Handover Date" hint="Column on the Work Order form">

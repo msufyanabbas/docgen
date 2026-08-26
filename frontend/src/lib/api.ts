@@ -1,7 +1,27 @@
 const BASE = '/api';
 
+/** Bearer token for every request, set by the auth provider. */
+let token: string | null = null;
+export const setAuthToken = (value: string | null) => {
+  token = value;
+};
+
+const authHeaders = (): Record<string, string> =>
+  token ? { Authorization: `Bearer ${token}` } : {};
+
+/** A 401 anywhere means the session is gone; drop it and bounce to login
+ *  rather than letting every page render its own error. */
+function handleUnauthorized(res: Response) {
+  if (res.status === 401 && !location.pathname.startsWith('/login')) {
+    localStorage.removeItem('docgen.token.v1');
+    token = null;
+    location.assign('/login');
+  }
+}
+
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
+    handleUnauthorized(res);
     let message = `Request failed (${res.status})`;
     try {
       const body = await res.json();
@@ -13,12 +33,13 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  get: <T>(path: string) => fetch(`${BASE}${path}`).then((r) => handle<T>(r)),
+  get: <T>(path: string) =>
+    fetch(`${BASE}${path}`, { headers: authHeaders() }).then((r) => handle<T>(r)),
 
   send: <T>(path: string, method: string, body?: unknown) =>
     fetch(`${BASE}${path}`, {
       method,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: body === undefined ? undefined : JSON.stringify(body),
     }).then((r) => handle<T>(r)),
 
@@ -26,7 +47,43 @@ export const api = {
     const fd = new FormData();
     fd.append('file', file);
     for (const [k, v] of Object.entries(fields)) if (v !== '' && v != null) fd.append(k, String(v));
-    return fetch(`${BASE}${path}`, { method: 'POST', body: fd }).then((r) => handle<T>(r));
+    return fetch(`${BASE}${path}`, { method: 'POST', body: fd, headers: authHeaders() })
+      .then((r) => handle<T>(r));
+  },
+
+  /** Downloads go through fetch too, since <a href> can't carry the bearer token. */
+  download: async (path: string, fallbackName = 'download') => {
+    const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
+    if (!res.ok) {
+      handleUnauthorized(res);
+      throw new Error(`Download failed (${res.status})`);
+    }
+    const disposition = res.headers.get('Content-Disposition') ?? '';
+    const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+    const plain = /filename="([^"]+)"/i.exec(disposition);
+    const name = utf8 ? decodeURIComponent(utf8[1]) : plain ? plain[1] : fallbackName;
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
+
+  /** Opens a PDF in a new tab, again via blob so the token isn't in the URL. */
+  openInline: async (path: string) => {
+    const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
+    if (!res.ok) {
+      handleUnauthorized(res);
+      throw new Error(`Preview failed (${res.status})`);
+    }
+    const url = URL.createObjectURL(await res.blob());
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   },
 
   fileUrl: (path: string) => `${BASE}${path}`,

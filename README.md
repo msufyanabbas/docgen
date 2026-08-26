@@ -1,5 +1,70 @@
 # Tawal DocGen
 
+Two document families, one platform, behind a login.
+
+**GCL / BOQ / Work Order / PAC** — the commercial pipeline.
+**MOP** — Method of Procedure, generated from Tawal's own Word templates.
+
+---
+
+## Access control
+
+The whole platform requires sign-in — not just MOP. Two roles:
+
+| Role | Can do |
+|---|---|
+| **Admin** | Everything, plus **user management** and adding projects / MOB categories |
+| **PM** | Everything except user management |
+
+The first admin is created on first boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`, flagged to
+force a password change at first sign-in. From there the admin creates PM accounts and sets
+their initial passwords; each PM must replace theirs on first login.
+
+A JWT is minted at login and re-validated against the database on **every request**, so
+deactivating an account takes effect immediately rather than when its token expires. The API
+refuses to start in production without `JWT_SECRET` set.
+
+---
+
+## Method of Procedure (MOP)
+
+```
+Project  →  has a type  →  which decides its MOB categories
+   RMS         Survey · Installation · PAT
+   CCTV        Survey · Installation · PAT
+   Smart Locks Survey · Installation · PAT
+   SIM Swap    Survey                          ← survey-only
+        └── MOB  →  MOP document  →  .docx + .pdf
+```
+
+There are **no pre-made projects**. You create one, pick its type, and the MOBs that type
+allows come with it — each already pointing at the right MOP format. SIM Swap can't be given an
+Installation MOB; the API rejects it, not just the UI.
+
+The catalog lives in `backend/src/modules/projects/project-types.ts` — one file, so adding a
+type or changing which MOP format a stage produces is a single edit.
+
+**How the documents are made.** Not rebuilt — *filled*. Each template is your own MOP `.docx`
+with the five Document Control values replaced by `{{PLACEHOLDERS}}`. Generation unzips it,
+substitutes into `word/document.xml`, and rezips. Every other part — cover artwork, the swirl
+graphics, headers, footers, styles, fonts — is copied through byte-for-byte. That is the only
+way the output is indistinguishable from a hand-prepared MOP; re-creating the layout would
+drift on the first Word update.
+
+The five fields collected: **TCN Summary · Site ID · Name of Requester · Name of PM ·
+Site Impact (YES/NO)**, plus an optional impact note printed verbatim.
+
+**PDF** comes from LibreOffice converting that same `.docx`. Tawal receives both files for one
+MOP, so converting the artefact we just produced is the only way they cannot disagree.
+
+**Bulk.** Download a pre-headed workbook, one row per site, upload it back. A failing row is
+recorded and skipped rather than aborting the batch — with fifty sites, one bad row shouldn't
+cost the other forty-nine. The whole batch downloads as a ZIP with DOCX and PDF side by side.
+
+---
+
+## The commercial pipeline
+
 Two ways in, one pipeline out.
 
 **Create a GCL** from an approved scope-of-work sheet, or **upload a signed GCL** you already have. Either way you get a priced package that produces the **As-Built BOQ**, **Work Order** and **PAC** in the layouts Tawal already accepts.
@@ -15,6 +80,26 @@ Signed GCL (.pdf) ────┘              ▲                    BOQ .xlsx 
 
 **Stack:** NestJS 11 · Prisma · PostgreSQL · ExcelJS · Puppeteer + Handlebars
 · React 18 · Vite · Tailwind · Radix UI · Framer Motion
+
+---
+
+## You choose what the money is based on
+
+Nothing about quantities is hard-coded. When a GCL or scope sheet is parsed, every numeric
+column is detected **with its printed heading** and offered as the basis for pricing, each
+showing what the package would cost:
+
+```
+qty1  "Design QTY"   →  13,761.00 SAR
+qty2  "As Bulit"     →  11,216.00 SAR      ← matches Tawal's signed Work Order
+```
+
+Those labels are read off the document, spelling and all — the sample GCL really does print
+"As Bulit". A file that labels its columns differently still works, because nothing is matched
+against a fixed list of names.
+
+The choice is stored per package and changeable afterwards; the BOQ, Work Order and PAC all
+re-price from it.
 
 ---
 

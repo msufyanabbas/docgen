@@ -27,11 +27,23 @@ export interface Token {
   h: number;
 }
 
+export interface QuantityColumn {
+  /** Stable key used to reference this column later, e.g. "qty1". */
+  key: string;
+  /** Header text as printed on the document, e.g. "Design QTY". */
+  label: string;
+  /** Left edge, so columns stay in document order. */
+  x: number;
+}
+
 export interface ParsedGclLine {
   no: number;
   itemCode: string;
   description: string;
   unit: string | null;
+  /** Every numeric column found on this row, keyed by QuantityColumn.key. */
+  quantities: Record<string, number>;
+  /** First and second columns, kept for convenience and older packages. */
   designQty: number;
   asBuiltQty: number;
   itemType: string | null;
@@ -50,6 +62,8 @@ export interface ParsedGcl {
   contractorPmName: string | null;
   mspRepName: string | null;
   notes: string | null;
+  /** Quantity columns the user can choose between for pricing. */
+  quantityColumns: QuantityColumn[];
   lines: ParsedGclLine[];
   warnings: string[];
 }
@@ -310,6 +324,64 @@ export async function parseGcl(buffer: Buffer): Promise<ParsedGcl> {
     .sort((a, b) => b.y - a.y)[0];
   const tableTop = headerTok ? headerTok.y + 4 : anchors[0].y - 30;
 
+  /*
+   * Which columns hold quantities is read from the document rather than assumed.
+   * The header cells between "Unit" and the Tangible/Service column are the
+   * numeric ones; their printed labels become the choices the user picks from.
+   */
+  const unitHeader = tokens.find((t) => norm(t.text) === 'unit' && t.y < anchors[0].y);
+  const typeHeader = tokens.find(
+    (t) => ['tangible', 'tangibleor'].includes(norm(t.text)) && t.y < anchors[0].y,
+  );
+  const headerBandTop = tableTop - 46;
+
+  const quantityColumns: QuantityColumn[] = [];
+  if (unitHeader) {
+    const rightLimit = typeHeader ? typeHeader.x - 2 : unitHeader.x + 120;
+    // Header labels wrap ("Design"/"QTY"), so group the header tokens by x.
+    const headerTokens = band(tokens, headerBandTop, tableTop)
+      .filter((t) => t.x > unitHeader.x + unitHeader.w && t.x < rightLimit)
+      .sort((a, b) => a.x - b.x);
+
+    // Headers stack over several lines ("As" / "Bulit" / "QTY"), so group by x
+    // and then read each group top-to-bottom to recover the printed wording.
+    const groups: { x: number; parts: Token[] }[] = [];
+    for (const t of headerTokens) {
+      const g = groups.find((gr) => Math.abs(gr.x - t.x) < 18);
+      if (g) {
+        g.parts.push(t);
+        g.x = Math.min(g.x, t.x);
+      } else {
+        groups.push({ x: t.x, parts: [t] });
+      }
+    }
+
+    groups
+      .sort((a, b) => a.x - b.x)
+      .forEach((g, idx) => {
+        const label = g.parts
+          .sort((a, b) => a.y - b.y || a.x - b.x)
+          .map((t) => t.text)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        quantityColumns.push({
+          key: `qty${idx + 1}`,
+          label: label || `Quantity ${idx + 1}`,
+          x: g.x,
+        });
+      });
+  }
+
+  if (!quantityColumns.length) {
+    // Fall back to the classic two-column layout so an unusual header still works.
+    quantityColumns.push(
+      { key: 'qty1', label: 'Design QTY', x: 0 },
+      { key: 'qty2', label: 'As-Built QTY', x: 1 },
+    );
+    warnings.push('Quantity column headers could not be read — assuming Design then As-Built.');
+  }
+
   const lines: ParsedGclLine[] = [];
 
   anchors.forEach((anchor, i) => {
@@ -336,8 +408,31 @@ export async function parseGcl(buffer: Buffer): Promise<ParsedGcl> {
       .filter((t) => t.x > unitX + 4 && QTY_RE.test(t.text))
       .sort((a, b) => a.x - b.x);
 
-    const designQty = qtyToks[0] ? toNumber(qtyToks[0].text) : 0;
-    const asBuiltQty = qtyToks[1] ? toNumber(qtyToks[1].text) : designQty;
+    // Assign each number to the nearest header column, so a blank cell doesn't
+    // shift every later value one column to the left.
+    const quantities: Record<string, number> = {};
+    const positioned = quantityColumns.some((c) => c.x > 2);
+
+    qtyToks.forEach((tok, idx) => {
+      let key: string;
+      if (positioned) {
+        const nearest = quantityColumns.reduce((best, c) =>
+          Math.abs(c.x - tok.x) < Math.abs(best.x - tok.x) ? c : best,
+        );
+        key = nearest.key;
+      } else {
+        key = quantityColumns[idx]?.key ?? `qty${idx + 1}`;
+      }
+      // Two numbers landing on one column means the layout drifted; keep the first.
+      if (quantities[key] === undefined) quantities[key] = toNumber(tok.text);
+    });
+
+    for (const c of quantityColumns) {
+      if (quantities[c.key] === undefined) quantities[c.key] = 0;
+    }
+
+    const designQty = quantities[quantityColumns[0]?.key ?? 'qty1'] ?? 0;
+    const asBuiltQty = quantities[quantityColumns[1]?.key ?? 'qty2'] ?? designQty;
 
     if (!qtyToks.length) {
       warnings.push(`${anchor.text}: no quantity found, defaulted to 0.`);
@@ -362,6 +457,7 @@ export async function parseGcl(buffer: Buffer): Promise<ParsedGcl> {
       itemCode: anchor.text.toUpperCase(),
       description,
       unit: unitTok ? unitTok.text : null,
+      quantities,
       designQty,
       asBuiltQty,
       itemType: typeTok
@@ -429,6 +525,7 @@ export async function parseGcl(buffer: Buffer): Promise<ParsedGcl> {
     contractorPmName,
     mspRepName,
     notes,
+    quantityColumns,
     lines,
     warnings,
   };

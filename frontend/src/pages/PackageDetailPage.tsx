@@ -61,6 +61,7 @@ export default function PackageDetailPage() {
     try {
       const body = {
         quantitySource: pkg.quantitySource,
+        quantityFieldKey: pkg.quantityFieldKey ?? undefined,
         siteNo: pkg.siteNo,
         region: pkg.region ?? undefined,
         district: pkg.district ?? undefined,
@@ -140,6 +141,11 @@ export default function PackageDetailPage() {
             <span className="chip bg-line/50 text-fg-muted">
               {pkg.origin === 'SCOPE_SHEET' ? 'From scope sheet' : 'From signed GCL'}
             </span>
+            {pkg.quantityFieldLabel && (
+              <span className="chip bg-cyan-brand/15 text-cyan-brand">
+                priced on {pkg.quantityFieldLabel}
+              </span>
+            )}
           </div>
           <p className="mt-1 break-all font-mono text-xs text-fg-muted">{pkg.woNumber}</p>
           {pkg.siteName && <p className="text-xs text-fg-subtle">{pkg.siteName}</p>}

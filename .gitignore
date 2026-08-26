@@ -1,10 +1,7 @@
 node_modules/
 dist/
 build/
-+# Anchored: an unanchored "storage/" also matches
-+# backend/src/modules/storage/, which is source code.
-+/backend/storage/
-+/storage/
+storage/
 .env
 .env.local
 *.log

@@ -1,0 +1,27 @@
+import { Type } from 'class-transformer';
+import { IsBoolean, IsEmail, IsEnum, IsInt, IsOptional, IsPositive, IsString, MinLength } from 'class-validator';
+import { UserRole } from '@prisma/client';
+
+export class CreateUserDto {
+  @IsEmail({}, { message: 'Enter a valid email address' }) email!: string;
+  @IsString() @MinLength(2) name!: string;
+  @IsString() @MinLength(8, { message: 'Password must be at least 8 characters' }) password!: string;
+  @IsOptional() @IsEnum(UserRole) role?: UserRole;
+}
+
+export class UpdateUserDto {
+  @IsOptional() @IsString() @MinLength(2) name?: string;
+  @IsOptional() @IsEnum(UserRole) role?: UserRole;
+  @IsOptional() @IsBoolean() isActive?: boolean;
+}
+
+export class ResetPasswordDto {
+  @IsString() @MinLength(8) newPassword!: string;
+}
+
+export class QueryUsersDto {
+  @IsOptional() @IsString() search?: string;
+  @IsOptional() @IsEnum(UserRole) role?: UserRole;
+  @IsOptional() @Type(() => Number) @IsInt() @IsPositive() page?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @IsPositive() limit?: number;
+}

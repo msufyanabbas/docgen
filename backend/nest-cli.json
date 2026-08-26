@@ -6,7 +6,8 @@
     "deleteOutDir": true,
     "assets": [
       { "include": "modules/documents/templates/**/*.hbs", "outDir": "dist" },
-      { "include": "../assets/**/*", "outDir": "dist/assets" }
+      { "include": "../assets/**/*", "outDir": "dist/assets" },
+      { "include": "../templates/**/*", "outDir": "dist/templates" }
     ],
     "watchAssets": true
   }

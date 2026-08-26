@@ -16,6 +16,8 @@ import { PackageStatus, QuantitySource } from '@prisma/client';
 
 export class CreateFromGclDto {
   @IsOptional() @IsEnum(QuantitySource) quantitySource?: QuantitySource;
+  /** Key of the parsed quantity column to price against, e.g. "qty2". */
+  @IsOptional() @IsString() quantityFieldKey?: string;
   @IsOptional() @IsString() uplVersion?: string;
   @IsOptional() @IsString() woNumber?: string;
   @IsOptional() @IsString() siteNo?: string;
@@ -50,6 +52,8 @@ export class UpdateLineDto {
 
 export class UpdatePackageDto {
   @IsOptional() @IsEnum(QuantitySource) quantitySource?: QuantitySource;
+  @IsOptional() @IsString() quantityFieldKey?: string;
+  @IsOptional() @IsString() quantityFieldLabel?: string;
   @IsOptional() @IsEnum(PackageStatus) status?: PackageStatus;
 
   @IsOptional() @IsString() siteNo?: string;

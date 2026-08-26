@@ -30,8 +30,15 @@ async function bootstrap() {
     .setTitle('Tawal DocGen API')
     .setDescription('GCL -> As-Built BOQ / Work Order / PAC generation')
     .setVersion('1.0')
+    .addBearerAuth()
     .build();
   SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, config));
+
+  // A default JWT secret in production would let anyone mint a valid admin token.
+  if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+    Logger.error('JWT_SECRET is not set. Refusing to start in production.', 'Bootstrap');
+    process.exit(1);
+  }
 
   const port = Number(process.env.PORT || 3000);
   await app.listen(port, '0.0.0.0');

@@ -77,6 +77,23 @@ Open **http://localhost:5173**
 
 ---
 
+## Signing in
+
+The first boot creates an admin from the env file:
+
+```
+ADMIN_EMAIL=admin@smart-life.sa
+ADMIN_PASSWORD=ChangeMe123!
+```
+
+Sign in with those, and you'll be asked to set your own password immediately. Then go to
+**Users** to create accounts for your PMs.
+
+> Change `ADMIN_PASSWORD` in `.env` before the first deploy, and set a real `JWT_SECRET`
+> (`openssl rand -hex 32`). In production the API refuses to start without one.
+
+---
+
 ## First run
 
 ### Creating a GCL from a scope sheet
@@ -87,6 +104,16 @@ Open **http://localhost:5173**
 4. Fill Region, District and the PM names, then **Create GCL**.
 5. On the package screen hit **Generate documents** — you get the GCL plus the
    BOQ, WO and PAC.
+
+### Generating a MOP
+
+1. Pick a project in the sidebar under **Projects** — RMS, CCTV, SIM Swap or Smart Locks.
+2. Choose the MOB category (Survey/Installation, PAT, …).
+3. Fill TCN Summary, Site ID, Requester, PM and Site Impact.
+4. **Generate MOP** → download the `.docx`, or preview the PDF.
+
+For many sites, switch to **Bulk from Excel**, download the template, fill one row per site
+and upload it back.
 
 ### Working from a signed GCL
 

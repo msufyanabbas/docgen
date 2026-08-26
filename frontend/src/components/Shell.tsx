@@ -1,23 +1,38 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  ChevronRight,
   CircleHelp,
   FileSignature,
   FileUp,
+  FolderKanban,
   Layers,
+  ListOrdered,
+  LogOut,
   PanelLeftClose,
   PanelLeftOpen,
-  ListOrdered,
   Sparkles,
+  UserCog,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { useEffect, useState, type ReactNode } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
+import type { Project } from '../lib/types';
 import { cn } from '../lib/cn';
 import { useTour } from './Tour';
 import { Button } from './ui/Button';
 import CoBrand from './CoBrand';
 import { Aurora, ThemeToggle, useTheme } from './Theme';
 
-const GROUPS = [
+interface NavItem {
+  to: string;
+  label: string;
+  icon: typeof FileUp;
+  hint: string;
+  adminOnly?: boolean;
+}
+
+const GROUPS: { label: string; tour: string; items: NavItem[] }[] = [
   {
     label: 'Workflow',
     tour: 'nav',
@@ -34,13 +49,30 @@ const GROUPS = [
       { to: '/upl', label: 'Price List', icon: ListOrdered, hint: 'UPL versions' },
     ],
   },
+  {
+    label: 'Administration',
+    tour: 'nav-admin',
+    items: [
+      { to: '/users', label: 'Users', icon: UserCog, hint: 'Admins and PMs', adminOnly: true },
+    ],
+  },
 ];
 
 export default function Shell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(true);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsOpen, setProjectsOpen] = useState(true);
   const { start } = useTour();
   const { resolved } = useTheme();
+  const { user, isAdmin, logout } = useAuth();
   const location = useLocation();
+  const nav = useNavigate();
+
+  // Projects drive their own nav entries, so adding one in the UI makes it
+  // appear here without a code change.
+  useEffect(() => {
+    api.get<Project[]>('/projects').then(setProjects).catch(() => setProjects([]));
+  }, []);
 
   return (
     <div className="flex min-h-screen">
@@ -78,7 +110,7 @@ export default function Shell({ children }: { children: ReactNode }) {
         <div className="hairline" />
 
         <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5 no-scrollbar">
-          {GROUPS.map((group) => (
+          {GROUPS.filter((g) => g.items.some((i) => !i.adminOnly || isAdmin)).map((group) => (
             <div key={group.label} data-tour={group.tour}>
               <AnimatePresence initial={false}>
                 {open && (
@@ -94,7 +126,9 @@ export default function Shell({ children }: { children: ReactNode }) {
               </AnimatePresence>
 
               <div className="space-y-1">
-                {group.items.map(({ to, label, icon: Icon, hint }) => (
+                {group.items
+                  .filter((item) => !item.adminOnly || isAdmin)
+                  .map(({ to, label, icon: Icon, hint }) => (
                   <NavLink key={to} to={to} title={!open ? label : undefined}>
                     {({ isActive }) => (
                       <span
@@ -138,6 +172,75 @@ export default function Shell({ children }: { children: ReactNode }) {
               </div>
             </div>
           ))}
+          {/* Projects — dynamic, each expands to its MOB categories */}
+          <div data-tour="nav-projects">
+            <AnimatePresence initial={false}>
+              {open && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[.12em] text-fg-subtle"
+                >
+                  Projects
+                </motion.p>
+              )}
+            </AnimatePresence>
+
+            <NavLink to="/projects" title={!open ? 'Projects' : undefined}>
+              {({ isActive }) => (
+                <span
+                  className={cn(
+                    'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors',
+                    isActive ? 'text-white' : 'text-fg-muted hover:bg-line/50 hover:text-fg',
+                  )}
+                >
+                  {isActive && (
+                    <motion.span
+                      layoutId="nav-active"
+                      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                      className="absolute inset-0 -z-10 rounded-xl bg-brand-gradient shadow-soft"
+                    />
+                  )}
+                  <FolderKanban size={17} className="shrink-0" />
+                  {open && (
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">All projects</span>
+                      <span className={cn('block truncate text-[11px]', isActive ? 'text-white/70' : 'text-fg-subtle')}>
+                        {isAdmin ? 'Manage projects and MOBs' : 'Browse projects'}
+                      </span>
+                    </span>
+                  )}
+                </span>
+              )}
+            </NavLink>
+
+            {open && projects.length > 0 && (
+              <div className="mt-1 space-y-0.5 border-l border-line/70 pl-3 ml-4">
+                {projects.map((p) => (
+                  <NavLink key={p.id} to={`/mop/${p.slug}`}>
+                    {({ isActive }) => (
+                      <span
+                        className={cn(
+                          'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors',
+                          isActive
+                            ? 'bg-line/60 font-medium text-fg'
+                            : 'text-fg-muted hover:bg-line/40 hover:text-fg',
+                        )}
+                      >
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ background: p.colour ?? '#44489D' }}
+                        />
+                        <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                        <span className="text-[10px] text-fg-subtle">{p.mobs.length}</span>
+                      </span>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </div>
         </nav>
 
         <div className="px-3 pb-4">
@@ -168,6 +271,24 @@ export default function Shell({ children }: { children: ReactNode }) {
               <ThemeToggle />
               <Button variant="outline" size="sm" onClick={start} data-tour="help">
                 <CircleHelp size={14} /> <span className="hidden sm:inline">Take the tour</span>
+              </Button>
+
+              <button
+                onClick={() => nav('/account')}
+                title="Your account"
+                className="flex items-center gap-2 rounded-xl border border-line bg-card/60 py-1 pl-1 pr-3 transition hover:border-cyan-brand/40"
+              >
+                <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-gradient text-[11px] font-bold text-white">
+                  {(user?.name ?? '?').slice(0, 1).toUpperCase()}
+                </span>
+                <span className="hidden text-left leading-tight sm:block">
+                  <span className="block max-w-[120px] truncate text-xs font-medium text-fg">{user?.name}</span>
+                  <span className="block text-[10px] text-fg-subtle">{user?.role}</span>
+                </span>
+              </button>
+
+              <Button variant="ghost" size="icon" onClick={logout} title="Sign out">
+                <LogOut size={15} />
               </Button>
             </div>
           </div>

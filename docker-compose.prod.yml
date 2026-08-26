@@ -42,6 +42,12 @@ services:
       DEFAULT_PROJECT_NAME: ${DEFAULT_PROJECT_NAME:-SMART TOWER}
       DEFAULT_CURRENCY: ${DEFAULT_CURRENCY:-SAR}
       AUTO_SEED_UPL: ${AUTO_SEED_UPL:-true}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@smart-life.sa}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-ChangeMe123!}
+      ADMIN_NAME: ${ADMIN_NAME:-Administrator}
+      SOFFICE_PATH: ${SOFFICE_PATH:-/usr/bin/soffice}
     volumes:
       # Generated documents and uploaded GCLs must outlive the container.
       - storage:/app/storage

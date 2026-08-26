@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
@@ -8,6 +9,12 @@ import { UplModule } from './modules/upl/upl.module';
 import { GclModule } from './modules/gcl/gcl.module';
 import { PackagesModule } from './modules/packages/packages.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
+import { ProjectsModule } from './modules/projects/projects.module';
+import { MopModule } from './modules/mop/mop.module';
+import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
+import { DocxToPdfService } from './modules/mop/docx-to-pdf.service';
 import { HealthController } from './modules/health/health.controller';
 
 @Module({
@@ -16,11 +23,21 @@ import { HealthController } from './modules/health/health.controller';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 240 }]),
     PrismaModule,
     StorageModule,
+    AuthModule,
+    UsersModule,
+    ProjectsModule,
+    MopModule,
     UplModule,
     GclModule,
     PackagesModule,
     DocumentsModule,
   ],
   controllers: [HealthController],
+  providers: [
+    // Authentication is on for the whole platform. Routes opt out with @Public().
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // HealthController lives on this module and reports PDF-engine readiness.
+    DocxToPdfService,
+  ],
 })
 export class AppModule {}

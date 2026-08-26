@@ -39,23 +39,30 @@ export class GclBuilderService {
       const lines = site.lines.map((l, i) => {
         const upl = prices.get(l.itemCode);
         const unitPrice = upl ? Number(upl.price) : 0;
-        return {
-          no: i + 1,
-          ...l,
-          unitPrice,
-          priceFound: !!upl,
-          lineTotal: unitPrice * l.qty,
-        };
+        const totals: Record<string, number> = {};
+        for (const c of parsed.quantityColumns) {
+          totals[c.key] = unitPrice * (l.quantities[c.key] ?? 0);
+        }
+        return { no: i + 1, ...l, unitPrice, priceFound: !!upl, totals, lineTotal: unitPrice * l.qty };
       });
+
       return {
         ...site,
         lines,
         total: lines.reduce((a, l) => a + l.lineTotal, 0),
+        columnTotals: Object.fromEntries(
+          parsed.quantityColumns.map((c) => [c.key, lines.reduce((a, l) => a + (l.totals[c.key] ?? 0), 0)]),
+        ),
         unpricedItems: lines.filter((l) => !l.priceFound).map((l) => l.itemCode),
       };
     });
 
-    return { sites, warnings: parsed.warnings };
+    return {
+      sites,
+      quantityColumns: parsed.quantityColumns,
+      suggestedFieldKey: parsed.quantityColumns[0]?.key ?? null,
+      warnings: parsed.warnings,
+    };
   }
 
   /* ---------------------------------------------------------------- create */
@@ -91,7 +98,7 @@ export class GclBuilderService {
 
     const created = [];
     for (const site of selected) {
-      created.push(await this.createOne(site, dto, overrides, signature));
+      created.push(await this.createOne(site, dto, overrides, signature, parsed.quantityColumns));
     }
 
     return { packages: created, warnings: parsed.warnings };
@@ -102,6 +109,7 @@ export class GclBuilderService {
     dto: CreateGclDto,
     overrides: Map<string, ScopeSiteInputDto>,
     signature?: { fileName: string; filePath: string },
+    parsedColumns: { key: string; label: string }[] = [],
   ) {
     const defaults = this.config.get('defaults');
     const key = site.siteCode ?? site.tawalSiteId ?? '';
@@ -123,14 +131,16 @@ export class GclBuilderService {
     const uplVersion = dto.uplVersion ?? 'v1';
     const prices = await this.upl.priceMap(site.lines.map((l) => l.itemCode), uplVersion);
     const quantitySource = dto.quantitySource ?? QuantitySource.AS_BUILT;
+    const fieldKey = dto.quantityFieldKey ?? null;
 
     let gross = D(0);
     const lines = site.lines.map((l, i) => {
       const upl = prices.get(l.itemCode);
       const unitPrice = upl ? new Prisma.Decimal(upl.price) : D(0);
-      const designQty = D(l.qty);
-      const asBuiltQty = D(l.qty); // adjusted after the handover visit
-      const quantity = quantitySource === QuantitySource.DESIGN ? designQty : asBuiltQty;
+      const base = fieldKey && l.quantities?.[fieldKey] !== undefined ? l.quantities[fieldKey] : l.qty;
+      const designQty = D(base);
+      const asBuiltQty = D(base); // adjusted after the handover visit
+      const quantity = designQty;
       const lineTotal = round2(unitPrice.mul(quantity));
       gross = gross.plus(lineTotal);
 
@@ -144,6 +154,7 @@ export class GclBuilderService {
         designQty,
         asBuiltQty,
         quantity,
+        quantities: (l.quantities ?? {}) as any,
         serialNumber: null,
         tagNumber: 'N/A',
         serviceDate: dto.gclDate ?? null,
@@ -163,6 +174,10 @@ export class GclBuilderService {
         status: PackageStatus.DRAFT,
         quantitySource,
         uplVersion,
+        quantityFieldKey: fieldKey,
+        quantityFieldLabel:
+          parsedColumns.find((c) => c.key === fieldKey)?.label ?? null,
+        quantityFields: parsedColumns.length ? (parsedColumns as any) : undefined,
 
         woNumber,
         siteNo,
