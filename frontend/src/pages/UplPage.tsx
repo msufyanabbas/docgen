@@ -104,7 +104,7 @@ export default function UplPage() {
             <span className="text-sm font-semibold text-fg">{data.total} items</span>
             <span className="text-xs text-fg-subtle">version {version}</span>
           </div>
-          <table className="w-full">
+          <table className="w-full min-w-[720px]">
             <thead>
               <tr>
                 <th className="th w-16">Line</th>

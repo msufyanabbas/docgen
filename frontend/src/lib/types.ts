@@ -115,6 +115,10 @@ export interface Package {
   origin: PackageOrigin;
   quantityFieldKey: string | null;
   quantityFieldLabel: string | null;
+  externalProjectId: string | null;
+  externalSiteId: string | null;
+  externalProjectTitle: string | null;
+  externalCategory: string | null;
   quantityFields: { key: string; label: string }[] | null;
   siteName: string | null;
   signatureFileName: string | null;
@@ -187,47 +191,47 @@ export interface AuthUser {
 
 /* -------------------------------------------------------- projects / MOP */
 
-export type MobTypeKey = 'SURVEY' | 'INSTALLATION' | 'PAT';
-export type ProjectTypeKey = 'RMS' | 'CCTV' | 'SIM_SWAP' | 'SMART_LOCKS';
-
-export interface MobTypeDefinition {
-  key: MobTypeKey;
-  name: string;
-  templateKey: string;
-  defaultTcnSummary: string;
-  sortOrder: number;
-}
-
-export interface ProjectTypeDefinition {
-  key: ProjectTypeKey;
-  label: string;
-  description: string;
-  colour: string;
-  mobTypes: MobTypeDefinition[];
-}
-
-export interface Mob {
+export interface ProjectCategory {
   id: string;
-  projectId: string;
   name: string;
   slug: string;
-  mobType: MobTypeKey;
+  description: string | null;
+  colour: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  templates?: CategoryTemplate[];
+  _count?: { projects: number };
+}
+
+export interface MopCategory {
+  id: string;
+  name: string;
+  slug: string;
+  isActive: boolean;
+  sortOrder: number;
+  templates?: CategoryTemplate[];
+  _count?: { documents: number };
+}
+
+export interface CategoryTemplate {
+  id: string;
+  projectCategoryId: string;
+  mopCategoryId: string;
   templateKey: string;
   defaultTcnSummary: string | null;
-  sortOrder: number;
-  isActive: boolean;
+  mopCategory?: MopCategory;
+  projectCategory?: ProjectCategory;
 }
 
 export interface Project {
   id: string;
   name: string;
   slug: string;
-  type: ProjectTypeKey;
   description: string | null;
-  colour: string | null;
   isActive: boolean;
   sortOrder: number;
-  mobs: Mob[];
+  projectCategoryId: string;
+  projectCategory?: ProjectCategory;
   _count?: { documents: number };
 }
 
@@ -242,7 +246,8 @@ export type SiteImpact = 'NO' | 'YES';
 export interface MopDocument {
   id: string;
   projectId: string;
-  mobId: string;
+  mopCategoryId: string;
+  templateKey?: string | null;
   tcnSummary: string;
   siteId: string;
   requesterName: string;
@@ -253,8 +258,13 @@ export interface MopDocument {
   pdfFileName: string | null;
   batchId: string | null;
   createdAt: string;
-  project?: { id: string; name: string; slug: string; colour?: string | null };
-  mob?: { id: string; name: string; slug?: string };
+  project?: {
+    id: string;
+    name: string;
+    slug: string;
+    projectCategory?: { id: string; name: string; colour: string | null };
+  };
+  mopCategory?: { id: string; name: string; slug?: string };
   createdBy?: { id: string; name: string } | null;
 }
 
@@ -268,4 +278,65 @@ export interface MopBatch {
   createdAt: string;
   createdBy?: { id: string; name: string } | null;
   _count?: { documents: number };
+}
+
+/* ------------------------------------------------------------- dashboard */
+
+export interface DashboardData {
+  cards: {
+    mopTotal: number;
+    mopThisMonth: number;
+    packageTotal: number;
+    projectTotal: number;
+    userTotal: number;
+    uplItems: number;
+    batches: number;
+    packageValue: number;
+  };
+  byProject: { id: string; name: string; slug: string; category: string; colour: string; count: number }[];
+  byCategory: { id: string; name: string; count: number }[];
+  byImpact: { impact: SiteImpact; count: number }[];
+  monthly: { key: string; label: string; mops: number; packages: number }[];
+  recentMops: MopDocument[];
+  recentPackages: {
+    id: string; siteNo: string; woNumber: string;
+    netAmount: string; currency: string; status: string; createdAt: string;
+  }[];
+}
+
+export interface DirectoryUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+}
+
+/* ----------------------------------------------- external project tracker */
+
+export interface ExternalProject {
+  id: string;
+  siteId: string;
+  tawalId: string | null;
+  title: string;
+  description: string | null;
+  category: string | null;
+  status: string | null;
+  priority: string | null;
+  teamLead: string | null;
+  region: string | null;
+  city: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  patTcnStatus: string | null;
+  patStatus: string | null;
+  woNumber: string | null;
+  tcnNumber: string | null;
+}
+
+export interface ExternalProjectsResult {
+  available: boolean;
+  items: ExternalProject[];
+  total: number;
+  message?: string;
+  fetchedAt: string;
 }

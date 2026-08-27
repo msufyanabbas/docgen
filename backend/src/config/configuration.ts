@@ -21,6 +21,13 @@ export default () => ({
     currency: process.env.DEFAULT_CURRENCY || 'SAR',
   },
 
+  externalProjects: {
+    // The Tawal-side tracker that supplies the project list for GCL.
+    url:
+      process.env.EXTERNAL_PROJECTS_URL ||
+      'http://147.79.114.76:5003/api/projects/public/projects',
+  },
+
   puppeteerExecutablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
   sofficePath: process.env.SOFFICE_PATH || 'soffice',
 });

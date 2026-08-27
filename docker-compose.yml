@@ -34,6 +34,7 @@ services:
       ADMIN_EMAIL: admin@smart-life.sa
       ADMIN_PASSWORD: ChangeMe123!
       SOFFICE_PATH: /usr/bin/soffice
+      EXTERNAL_PROJECTS_URL: http://147.79.114.76:5003/api/projects/public/projects
     volumes:
       - storage:/app/storage
     ports:

@@ -7,13 +7,22 @@ Two document families, one platform, behind a login.
 
 ---
 
+## The dashboard
+
+Signing in lands on a dashboard rather than a form: MOPs and packages produced over the last six
+months, a breakdown per project and per MOP category, site-impact split, total package value, and
+the most recent documents of each kind. The counts are aggregated in the database rather than by
+pulling rows into Node — a year of MOPs is a lot of records to move just to count them.
+
+---
+
 ## Access control
 
 The whole platform requires sign-in — not just MOP. Two roles:
 
 | Role | Can do |
 |---|---|
-| **Admin** | Everything, plus **user management** and adding projects / MOB categories |
+| **Admin** | Everything, plus **user management** and adding projects / MOP categories |
 | **PM** | Everything except user management |
 
 The first admin is created on first boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`, flagged to
@@ -29,20 +38,26 @@ refuses to start in production without `JWT_SECRET` set.
 ## Method of Procedure (MOP)
 
 ```
-Project  →  has a type  →  which decides its MOB categories
-   RMS         Survey · Installation · PAT
-   CCTV        Survey · Installation · PAT
-   Smart Locks Survey · Installation · PAT
-   SIM Swap    Survey                          ← survey-only
-        └── MOB  →  MOP document  →  .docx + .pdf
+Project category   ×   MOP category   →   MOP format
+   RMS                  Survey            Site_Survey
+   RMS                  Installation      INSTALLATION
+   RMS                  PAT               INSTALLATION
+   CCTV                 Survey            Site_Survey
+   CCTV                 Installation      CCTV_Installation
+   CCTV                 PAT               CCTV_Installation
+   SIM Swap             Survey            SIM_SWAP        ← the only pairing
+   Smart Locks          Survey / Install / PAT
+
+Project  →  belongs to a project category
+MOP      →  a project + one of the MOP categories its category is paired with
 ```
 
-There are **no pre-made projects**. You create one, pick its type, and the MOBs that type
-allows come with it — each already pointing at the right MOP format. SIM Swap can't be given an
-Installation MOB; the API rejects it, not just the UI.
+Both catalogs are **user-managed** — add, hide or remove categories from the UI, and pair them
+however you need. "SIM Swap is survey-only" isn't a rule in code; it is simply the only pairing
+that exists, and the API refuses any MOP for a pairing that isn't there.
 
-The catalog lives in `backend/src/modules/projects/project-types.ts` — one file, so adding a
-type or changing which MOP format a stage produces is a single edit.
+**There are no pre-made projects.** Categories are seeded on first boot so the platform is usable
+immediately; projects you create yourself.
 
 **How the documents are made.** Not rebuilt — *filled*. Each template is your own MOP `.docx`
 with the five Document Control values replaced by `{{PLACEHOLDERS}}`. Generation unzips it,
@@ -60,6 +75,33 @@ MOP, so converting the artefact we just produced is the only way they cannot dis
 **Bulk.** Download a pre-headed workbook, one row per site, upload it back. A failing row is
 recorded and skipped rather than aborting the batch — with fifty sites, one bad row shouldn't
 cost the other forty-nine. The whole batch downloads as a ZIP with DOCX and PDF side by side.
+
+---
+
+## GCL and the project tracker
+
+Projects for GCL come from the Tawal-side tracker, not this database:
+
+```
+GET http://147.79.114.76:5003/api/projects/public/projects
+
+Create GCL  →  closeout.patTcn.status   === 'Approved'
+Upload GCL  →  closeout.patStatus.status === 'Approved'
+```
+
+**GCL documents** is the library — every GCL with its BOQ, Work Order and PAC, grouped by
+project, the same shape as the MOP library. **Create GCL** and **Upload GCL** open a dialog that
+asks for the project before the form appears.
+
+**Choosing a project is mandatory.** The rest of the screen stays locked until
+one is selected, and the API refuses a GCL without a valid, eligible project — a GCL that can't
+be traced back to a tracker project is worse than no GCL. The stage is re-checked server-side,
+so an approved PAT TCN does not let a signed GCL be uploaded against a project whose PAT is
+still pending.
+
+Responses are cached for 60 seconds with a 12-second timeout. Fields the tracker leaves empty
+display as **N/A**. If the service is unreachable the screen says so plainly rather than
+erroring — but no GCL can be raised until it is back, which is the correct outcome.
 
 ---
 

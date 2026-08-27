@@ -52,6 +52,9 @@ export class CreateGclDto {
   @IsOptional() @IsString() contractorName?: string;
   @IsOptional() @IsString() uplVersion?: string;
   @IsOptional() @IsString() woSequence?: string;
+  /** Site ID of the tracker project. Required — see CreateFromGclDto. */
+  @IsString({ message: 'Select a project before creating a GCL' })
+  externalSiteId!: string;
   @IsOptional() @IsEnum(QuantitySource) quantitySource?: QuantitySource;
   /** Which parsed column drives pricing, e.g. "col12". */
   @IsOptional() @IsString() quantityFieldKey?: string;

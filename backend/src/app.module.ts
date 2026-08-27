@@ -12,6 +12,9 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { ExternalProjectsModule } from './modules/external-projects/external-projects.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { MopModule } from './modules/mop/mop.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { DocxToPdfService } from './modules/mop/docx-to-pdf.service';
@@ -25,7 +28,10 @@ import { HealthController } from './modules/health/health.controller';
     StorageModule,
     AuthModule,
     UsersModule,
+    CategoriesModule,
+    ExternalProjectsModule,
     ProjectsModule,
+    DashboardModule,
     MopModule,
     UplModule,
     GclModule,

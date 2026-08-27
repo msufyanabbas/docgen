@@ -1,243 +1,120 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Deploy to the server.
+# Deploy:  npm run deploy
 #
-#   npm run deploy                 build changed layers and restart
-#   npm run deploy -- --no-cache   full rebuild
-#   npm run deploy -- --branch dev deploy another branch
-#   npm run deploy -- --skip-pull  redeploy what's already on the server
+# One SSH session. The server clones the latest commit, builds both images and
+# restarts. Build output is quiet by default — pass --verbose when something
+# breaks and you need to see why.
 #
-# The whole deploy runs as ONE remote session, so password auth prompts once —
-# including on Windows, where SSH connection multiplexing is unavailable.
-# The server pulls from GitHub and builds there; nothing large is uploaded.
+#   npm run deploy                 normal
+#   npm run deploy -- --verbose    full build output
+#   npm run deploy -- --no-cache   ignore the layer cache
+#   npm run deploy -- --branch dev another branch
 # ---------------------------------------------------------------------------
+set -euo pipefail
 
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+[ -f "$ROOT_DIR/deploy.config" ] || {
+  echo "deploy.config not found. Run: cp deploy.config.example deploy.config"
+  exit 1
+}
+# shellcheck disable=SC1091
+source "$ROOT_DIR/deploy.config"
 
+BRANCH="${BRANCH:-master}"
+DEPLOY_DIR="${DEPLOY_DIR:-/var/www/tawal-docgen}"
+SRC_DIR="${SRC_DIR:-/tmp/tawal-docgen-build}"
+HOST_HTTP_PORT="${HOST_HTTP_PORT:-8095}"
+SERVER="$SERVER_USER@$SERVER_HOST"
+
+QUIET="--quiet"
 NO_CACHE=""
-SKIP_PULL=""
-OVERRIDE_BRANCH=""
-
 while [ $# -gt 0 ]; do
   case "$1" in
+    --verbose)   QUIET=""; shift ;;
     --no-cache)  NO_CACHE="--no-cache"; shift ;;
-    --skip-pull) SKIP_PULL="1"; shift ;;
-    --branch)    OVERRIDE_BRANCH="$2"; shift 2 ;;
-    -h|--help)   sed -n '2,13p' "$0"; exit 0 ;;
-    *)           die "Unknown option: $1" ;;
+    --branch)    BRANCH="$2"; shift 2 ;;
+    *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
 
-load_config
-[ -n "$OVERRIDE_BRANCH" ] && BRANCH="$OVERRIDE_BRANCH"
+SSH_OPTS=(
+  -p "${SERVER_PORT:-22}"
+  -o ServerAliveInterval=30
+  -o ServerAliveCountMax=20
+  -o TCPKeepAlive=yes
+  -o ConnectTimeout=30
+  -o StrictHostKeyChecking=no
+)
+[ -n "${SSH_KEY:-}" ] && SSH_OPTS+=(-i "${SSH_KEY/#\~/$HOME}")
+
+REPO="$REPO_URL"
+[ -n "${GIT_TOKEN:-}" ] && REPO="${REPO_URL/https:\/\//https://$GIT_TOKEN@}"
 
 echo ""
-echo "${C_BOLD}Tawal DocGen — deploy${C_RESET}"
-info "server   $SERVER:$SERVER_PORT"
-info "branch   $BRANCH"
-info "domain   ${DOMAIN:-<not set>} (container port $HOST_HTTP_PORT)"
-
-setup_ssh
-trap close_ssh EXIT
+echo "🚀 Deploying Tawal DocGen"
+echo "   $SERVER · $BRANCH · port $HOST_HTTP_PORT"
+echo ""
 
 START=$(date +%s)
 
-# ---------------------------------------------------------------------------
-# The build takes minutes. If it runs as a child of the SSH session, a dropped
-# connection ("Read from remote host: Connection reset by peer") kills it
-# halfway. So: write the script to the server, launch it DETACHED with setsid,
-# and just follow its log. The connection can die and reconnect freely — the
-# build carries on regardless.
-# ---------------------------------------------------------------------------
+# Unquoted heredoc on purpose: the local config values ($SRC_DIR, $BRANCH, the
+# repo URL) are substituted here, while anything the remote shell must evaluate
+# is escaped with \$.
+# shellcheck disable=SC2087
+ssh "${SSH_OPTS[@]}" "$SERVER" bash <<REMOTE
+set -e
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
 
-REMOTE_DIR="$(rpath "$DEPLOY_DIR")"
-STAMP="$(date +%Y%m%d-%H%M%S)"
-REMOTE_SH="/tmp/tawal-docgen-deploy-$STAMP.sh"
-REMOTE_LOG="/tmp/tawal-docgen-deploy-$STAMP.log"
-REMOTE_RC="$REMOTE_LOG.rc"
+echo "📥 Fetching latest code..."
+rm -rf "$SRC_DIR"
+git clone --depth=1 --branch "$BRANCH" "$REPO" "$SRC_DIR" --quiet
+cd "$SRC_DIR"
+echo "   \$(git log --oneline -1)"
 
-LOCAL_SH="$(mktemp)"
-trap 'rm -f "$LOCAL_SH"' EXIT
-
-{
-  echo "#!/usr/bin/env bash"
-  # Config is baked in rather than passed through the environment, so the
-  # detached process keeps it after the launching shell is gone.
-  echo "SRC='$(rpath "$SRC_DIR")'"
-  echo "DEPLOY='$REMOTE_DIR'"
-  echo "REPO='$(repo_url_with_token)'"
-  echo "BRANCH='$BRANCH'"
-  echo "PREFIX='$IMAGE_PREFIX'"
-  echo "PORT='$HOST_HTTP_PORT'"
-  echo "NO_CACHE='$NO_CACHE'"
-  echo "SKIP_PULL='$SKIP_PULL'"
-  cat <<'PAYLOAD'
-set -uo pipefail
-
-B=$'\033[34m\033[1m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; D=$'\033[2m'; N=$'\033[0m'
-step() { echo ""; echo "${B}> $*${N}"; }
-ok()   { echo "  ${G}[ok]${N} $*"; }
-warn() { echo "  ${Y}[!]${N} $*"; }
-fail() { echo ""; echo "${R}[x] $*${N}" >&2; exit 1; }
-
-# ------------------------------------------------------------------ preflight
-step "Checking the server"
-MISSING=""
-command -v docker >/dev/null 2>&1      || MISSING="$MISSING docker"
-docker compose version >/dev/null 2>&1 || MISSING="$MISSING docker-compose-plugin"
-command -v git >/dev/null 2>&1         || MISSING="$MISSING git"
-command -v curl >/dev/null 2>&1        || MISSING="$MISSING curl"
-[ -n "$MISSING" ] && fail "Server is missing:$MISSING - run 'npm run deploy:setup' first."
-
-[ -d "$DEPLOY" ] || fail "$DEPLOY does not exist - run 'npm run deploy:setup' first."
-[ -w "$DEPLOY" ] || fail "$DEPLOY is not writable by $(id -un) - run 'npm run deploy:setup'."
-ok "docker, compose, git, curl - $DEPLOY writable"
-
-AVAIL=$(free -m | awk '/^Mem:/{print $7}')
-SWAP=$(free -m | awk '/^Swap:/{print $2}')
-echo "  ${D}memory ${AVAIL}MB available + ${SWAP}MB swap${N}"
-if [ $((AVAIL + SWAP)) -lt 1800 ]; then
-  warn "Under ~1.8GB usable - the vite/nest builds may be OOM-killed."
-  warn "'npm run deploy:setup' can add a swapfile."
-fi
-
-# --------------------------------------------------------------------- source
-if [ -z "$SKIP_PULL" ]; then
-  step "Fetching $BRANCH"
-  if [ ! -d "$SRC/.git" ]; then
-    echo "  ${D}cloning fresh${N}"
-    rm -rf "$SRC"
-    git clone --branch "$BRANCH" "$REPO" "$SRC" || fail "Clone failed. Check REPO_URL and, for a private repo, GIT_TOKEN."
-  else
-    cd "$SRC" || fail "cannot enter $SRC"
-    git remote set-url origin "$REPO"
-    git fetch origin "$BRANCH" --prune || fail "git fetch failed"
-    git checkout -B "$BRANCH" "origin/$BRANCH" >/dev/null 2>&1
-    git reset --hard "origin/$BRANCH" >/dev/null || fail "git reset failed"
-  fi
-  cd "$SRC" || exit 1
-  # Don't leave a token sitting in .git/config.
-  git remote set-url origin "$(git remote get-url origin | sed -E 's#https://[^@]+@#https://#')"
-  echo "  ${D}$(git --no-pager log -1 --format='%h - %s (%an, %ar)')${N}"
-  ok "Source updated"
-else
-  warn "Skipping pull - using whatever is checked out"
-  cd "$SRC" || fail "$SRC has no checkout to deploy"
-fi
-
-# ---------------------------------------------------------------------- build
-#
-# Build BEFORE touching the running containers. If the build fails the previous
-# version keeps serving, instead of a `compose down` leaving the site dead.
-#
-step "Building images"
-echo "  ${D}the slow part - a few minutes on a cold cache${N}"
-
+# Tag the running images so a bad build can be rolled back in seconds.
 for svc in backend frontend; do
-  docker image inspect "$PREFIX-$svc:latest" >/dev/null 2>&1 \
-    && docker tag "$PREFIX-$svc:latest" "$PREFIX-$svc:previous"
+  docker image inspect "tawal-docgen-\$svc:latest" >/dev/null 2>&1 \
+    && docker tag "tawal-docgen-\$svc:latest" "tawal-docgen-\$svc:previous" || true
 done
 
-SHA=$(git rev-parse --short HEAD)
-docker build $NO_CACHE -t "$PREFIX-backend:latest" -t "$PREFIX-backend:$SHA" ./backend \
-  || fail "Backend image build failed."
-docker build $NO_CACHE -t "$PREFIX-frontend:latest" -t "$PREFIX-frontend:$SHA" ./frontend \
-  || fail "Frontend image build failed."
-ok "Built at $SHA"
+echo "🔨 Building backend..."
+docker build $QUIET $NO_CACHE -t tawal-docgen-backend:latest ./backend
 
-# -------------------------------------------------------------------- release
-step "Releasing"
-cp "$SRC/docker-compose.prod.yml" "$DEPLOY/docker-compose.yml" || fail "cannot write to $DEPLOY"
+echo "🔨 Building frontend..."
+docker build $QUIET $NO_CACHE -t tawal-docgen-frontend:latest ./frontend
 
-if [ ! -f "$DEPLOY/.env" ]; then
-  cp "$SRC/deploy/.env.prod.example" "$DEPLOY/.env"
-  DBPASS=$(openssl rand -hex 16)
-  JWTSECRET=$(openssl rand -hex 32)
-  sed -i "s|__DB_PASSWORD__|$DBPASS|g" "$DEPLOY/.env"
-  sed -i "s|__JWT_SECRET__|$JWTSECRET|g" "$DEPLOY/.env"
-  warn "Created $DEPLOY/.env with a generated DB password - keep a copy."
-fi
+echo "🔄 Restarting..."
+cp "$SRC_DIR/docker-compose.prod.yml" "$DEPLOY_DIR/docker-compose.yml"
+cd "$DEPLOY_DIR"
 
-grep -q '^HOST_HTTP_PORT=' "$DEPLOY/.env" \
-  && sed -i "s|^HOST_HTTP_PORT=.*|HOST_HTTP_PORT=$PORT|" "$DEPLOY/.env" \
-  || echo "HOST_HTTP_PORT=$PORT" >> "$DEPLOY/.env"
+# No 'compose down' — up -d recreates only what changed, so the gap is about a
+# second instead of the minutes a full stop/start costs.
+docker compose up -d --remove-orphans
 
-cd "$DEPLOY" || exit 1
-# `up -d` recreates only what changed; no `down`, so the gap is about a second.
-docker compose up -d --remove-orphans || fail "docker compose up failed"
-ok "Containers up"
-
-# --------------------------------------------------------------- health check
-step "Waiting for the API"
-HEALTHY=""
-for _ in $(seq 1 30); do
-  CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$PORT/api/health" 2>/dev/null)
-  [ "$CODE" = "200" ] && { HEALTHY=1; break; }
+echo "⏳ Health check..."
+for i in \$(seq 1 30); do
+  if curl -sf "http://localhost:$HOST_HTTP_PORT/api/health" >/dev/null 2>&1; then
+    echo "   ✅ \$(curl -s http://localhost:$HOST_HTTP_PORT/api/health)"
+    OK=1; break
+  fi
   sleep 3
 done
 
-if [ -n "$HEALTHY" ]; then
-  ok "Healthy - $(curl -s "http://localhost:$PORT/api/health")"
-else
-  warn "No 200 from /api/health after 90s. Recent backend logs:"
+rm -rf "$SRC_DIR"
+docker image prune -f >/dev/null 2>&1 || true
+
+if [ -z "\${OK:-}" ]; then
+  echo "   ❌ API not responding. Recent logs:"
   docker compose logs --tail=40 backend
-  fail "Deployed but not answering. 'npm run deploy:rollback' restores the previous build."
+  exit 1
 fi
 
-step "Containers"
-docker compose ps
+docker compose ps --format "   {{.Service}}  {{.Status}}"
+REMOTE
 
-docker image prune -f >/dev/null 2>&1
-PAYLOAD
-} > "$LOCAL_SH"
-
-step "Starting the build on the server"
-ssh "${SSH_OPTS[@]}" "$SERVER" "cat > '$REMOTE_SH'" < "$LOCAL_SH" \
-  || die "Could not upload the deploy script."
-
-# setsid detaches from the ssh session's process group so SIGHUP never reaches it.
-PID=$(ssh "${SSH_OPTS[@]}" "$SERVER" \
-  "setsid nohup bash -c 'bash \"$REMOTE_SH\"; echo \$? > \"$REMOTE_RC\"' \
-     > '$REMOTE_LOG' 2>&1 < /dev/null & echo \$!") \
-  || die "Could not start the remote build."
-ok "Running detached as PID $PID — safe to lose the connection"
-info "log: $REMOTE_LOG"
-
-# --- follow the log, reconnecting as needed -------------------------------
-LINES=0
-ATTEMPTS=0
-while :; do
-  # tail --pid exits by itself once the build process finishes.
-  ssh "${SSH_OPTS[@]}" "$SERVER" \
-    "tail -n +$((LINES + 1)) -f --pid=$PID '$REMOTE_LOG' 2>/dev/null" || true
-
-  # Finished?
-  if ssh "${SSH_OPTS[@]}" "$SERVER" "[ -f '$REMOTE_RC' ]" 2>/dev/null; then
-    break
-  fi
-
-  # Still running, connection dropped: resume from where the output stopped.
-  NEW_LINES=$(ssh "${SSH_OPTS[@]}" "$SERVER" "wc -l < '$REMOTE_LOG' 2>/dev/null || echo 0" 2>/dev/null | tr -d ' ')
-  [ -n "$NEW_LINES" ] && LINES="$NEW_LINES"
-
-  ATTEMPTS=$((ATTEMPTS + 1))
-  [ "$ATTEMPTS" -gt 40 ] && die "Lost the connection too many times. The build may still be running:
-    ssh $SERVER \"tail -f $REMOTE_LOG\""
-
-  warn "Connection dropped — reconnecting to follow the build (attempt $ATTEMPTS)"
-  sleep 5
-done
-
-RC=$(ssh "${SSH_OPTS[@]}" "$SERVER" "cat '$REMOTE_RC' 2>/dev/null || echo 1" | tr -d '[:space:]')
-ssh "${SSH_OPTS[@]}" "$SERVER" "rm -f '$REMOTE_SH'" 2>/dev/null || true
-
-[ "$RC" = "0" ] || die "Deploy failed on the server (exit $RC).
-    Full log:  ssh $SERVER \"cat $REMOTE_LOG\""
-
-ELAPSED=$(( $(date +%s) - START ))
 echo ""
-echo "${C_GREEN}${C_BOLD}Deployed in ${ELAPSED}s${C_RESET}"
-[ -n "${DOMAIN:-}" ] && echo "  https://$DOMAIN"
-echo "  ${C_DIM}logs:   npm run deploy:logs${C_RESET}"
-echo "  ${C_DIM}revert: npm run deploy:rollback${C_RESET}"
+echo "🎉 Done in $(( $(date +%s) - START ))s"
+[ -n "${DOMAIN:-}" ] && echo "   https://$DOMAIN"
 echo ""

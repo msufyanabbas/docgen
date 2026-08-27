@@ -3,7 +3,8 @@ import { IsEnum, IsInt, IsOptional, IsPositive, IsString, MinLength } from 'clas
 import { SiteImpact } from '@prisma/client';
 
 export class CreateMopDto {
-  @IsString() mobId!: string;
+  @IsString() projectId!: string;
+  @IsString() mopCategoryId!: string;
   @IsString() @MinLength(2, { message: 'Site ID is required' }) siteId!: string;
   @IsOptional() @IsString() tcnSummary?: string;
   @IsString() @MinLength(2, { message: 'Name of Requester is required' }) requesterName!: string;
@@ -14,7 +15,7 @@ export class CreateMopDto {
 
 export class QueryMopDto {
   @IsOptional() @IsString() projectId?: string;
-  @IsOptional() @IsString() mobId?: string;
+  @IsOptional() @IsString() mopCategoryId?: string;
   @IsOptional() @IsString() batchId?: string;
   @IsOptional() @IsString() search?: string;
   @IsOptional() @Type(() => Number) @IsInt() @IsPositive() page?: number;
@@ -22,7 +23,8 @@ export class QueryMopDto {
 }
 
 export class BulkMopDto {
-  @IsString() mobId!: string;
+  @IsString() projectId!: string;
+  @IsString() mopCategoryId!: string;
   /** Used for any row that leaves the column blank. */
   @IsOptional() @IsString() requesterName?: string;
   @IsOptional() @IsString() pmName?: string;

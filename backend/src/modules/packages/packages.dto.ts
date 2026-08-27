@@ -15,6 +15,10 @@ import {
 import { PackageStatus, QuantitySource } from '@prisma/client';
 
 export class CreateFromGclDto {
+  /** Site ID of the tracker project this GCL belongs to. Required — a GCL
+   *  without a project cannot be reconciled against the tracker later. */
+  @IsString({ message: 'Select a project before uploading a GCL' })
+  externalSiteId!: string;
   @IsOptional() @IsEnum(QuantitySource) quantitySource?: QuantitySource;
   /** Key of the parsed quantity column to price against, e.g. "qty2". */
   @IsOptional() @IsString() quantityFieldKey?: string;

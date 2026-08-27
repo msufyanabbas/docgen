@@ -73,6 +73,14 @@ model Package {
   siteName       String?
   budget         String?
   subProjectName String?
+
+  /// Snapshot of the tracker project this GCL was raised against. Kept as plain
+  /// columns rather than a relation — the source is an external service that may
+  /// change or disappear, and the package must still read correctly.
+  externalProjectId    String?
+  externalSiteId       String?
+  externalProjectTitle String?
+  externalCategory     String?
   projectName    String         @default("SMART TOWER")
   contractorName String         @default("SMART LIFE")
   poNumber       String?
@@ -217,60 +225,87 @@ model User {
 /* ===========================================================================
    Method of Procedure (MOP)
 
-   Project (RMS, CCTV, SIM Swap, Smart Locks, ...) -> Mob (Survey/Installation,
-   PAT, ...) -> MopDocument. Projects and MOBs are data, not code, so new ones
-   are added from the UI without a deploy.
+   ProjectCategory (RMS, CCTV, SIM Swap, Smart Locks) x MopCategory (Survey,
+   Installation, PAT) -> a template pairing -> MopDocument. All of it is data,
+   not code, so new categories are added from the UI without a deploy.
    =========================================================================== */
+
+/// A kind of project — RMS, CCTV, SIM Swap, Smart Locks. User-managed, so new
+/// ones can be added without a deploy.
+model ProjectCategory {
+  id          String  @id @default(uuid())
+  name        String
+  slug        String  @unique
+  description String?
+  colour      String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  projects  Project[]
+  templates CategoryTemplate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("project_categories")
+}
+
+/// A stage of work — Survey, Installation, PAT. Also user-managed.
+model MopCategory {
+  id        String  @id @default(uuid())
+  name      String
+  slug      String  @unique
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  templates CategoryTemplate[]
+  documents MopDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("mop_categories")
+}
+
+/// Which MOP categories apply to which project category, and which Word
+/// template each pairing produces. This is where "SIM Swap is survey-only"
+/// lives: no row, no option.
+model CategoryTemplate {
+  id                String          @id @default(uuid())
+  projectCategoryId String
+  projectCategory   ProjectCategory @relation(fields: [projectCategoryId], references: [id], onDelete: Cascade)
+  mopCategoryId     String
+  mopCategory       MopCategory     @relation(fields: [mopCategoryId], references: [id], onDelete: Cascade)
+
+  templateKey       String
+  defaultTcnSummary String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectCategoryId, mopCategoryId])
+  @@map("category_templates")
+}
 
 model Project {
   id   String @id @default(uuid())
   name String
   slug String @unique
 
-  /// RMS | CCTV | SIM_SWAP | SMART_LOCKS — decides which MOBs are available.
-  /// See src/modules/projects/project-types.ts.
-  type String @default("RMS")
+  projectCategoryId String
+  projectCategory   ProjectCategory @relation(fields: [projectCategoryId], references: [id])
 
   description String?
-  colour      String? // sidebar accent
   isActive    Boolean @default(true)
   sortOrder   Int     @default(0)
 
-  mobs      Mob[]
   documents MopDocument[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([projectCategoryId])
   @@map("projects")
-}
-
-model Mob {
-  id        String  @id @default(uuid())
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  name      String
-  slug      String
-  sortOrder Int     @default(0)
-  isActive  Boolean @default(true)
-
-  /// SURVEY | INSTALLATION | PAT — which stage of the parent project type.
-  mobType String @default("SURVEY")
-
-  /// Which .docx under backend/templates/mop/ this MOB renders from.
-  templateKey String
-
-  /// Pre-filled default for the TCN Summary field.
-  defaultTcnSummary String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  documents MopDocument[]
-
-  @@unique([projectId, slug])
-  @@map("mobs")
 }
 
 enum SiteImpact {
@@ -282,8 +317,13 @@ model MopDocument {
   id        String  @id @default(uuid())
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  mobId     String
-  mob       Mob     @relation(fields: [mobId], references: [id], onDelete: Cascade)
+
+  mopCategoryId String
+  mopCategory   MopCategory @relation(fields: [mopCategoryId], references: [id])
+
+  /// Snapshotted at generation time, so re-templating a category later doesn't
+  /// change what an already-issued document says it was built from.
+  templateKey String?
 
   // --- the five Document Control fields ---
   tcnSummary    String
@@ -307,7 +347,7 @@ model MopDocument {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([projectId, mobId])
+  @@index([projectId, mopCategoryId])
   @@index([siteId])
   @@map("mop_documents")
 }

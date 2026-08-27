@@ -88,9 +88,13 @@ export class MopController {
 
   /* ----------------------------------------------------------------- bulk */
 
-  @Get('bulk/template/:mobId')
-  async bulkTemplate(@Param('mobId') mobId: string, @Res({ passthrough: true }) res: Response) {
-    const { fileName, buffer } = await this.mop.bulkTemplate(mobId);
+  @Get('bulk/template/:projectId/:mopCategoryId')
+  async bulkTemplate(
+    @Param('projectId') projectId: string,
+    @Param('mopCategoryId') mopCategoryId: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { fileName, buffer } = await this.mop.bulkTemplate(projectId, mopCategoryId);
     res.set({ 'Content-Type': MIME.xlsx, 'Content-Disposition': disposition(fileName) });
     return new StreamableFile(buffer);
   }
@@ -107,10 +111,14 @@ export class MopController {
     if (!/\.xlsx?$/i.test(file.originalname)) {
       throw new BadRequestException('Upload an .xlsx or .xls workbook.');
     }
-    return this.mop.bulkGenerate(file.buffer, file.originalname, dto.mobId, userId, {
-      requesterName: dto.requesterName,
-      pmName: dto.pmName,
-    });
+    return this.mop.bulkGenerate(
+      file.buffer,
+      file.originalname,
+      dto.projectId,
+      dto.mopCategoryId,
+      userId,
+      { requesterName: dto.requesterName, pmName: dto.pmName },
+    );
   }
 
   @Get('bulk/:batchId/zip')

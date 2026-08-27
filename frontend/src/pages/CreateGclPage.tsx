@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowRight, FileSignature, PenLine } from 'lucide-react';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, FileSignature, PenLine } from 'lucide-react';
 import FileDrop from '../components/FileDrop';
 import SignatureInput from '../components/SignatureInput';
 import QuantityFieldPicker from '../components/QuantityFieldPicker';
@@ -12,6 +12,9 @@ import { api, money } from '../lib/api';
 import type { Package, QuantitySource, ScopePreview } from '../lib/types';
 
 export default function CreateGclPage() {
+  const [params] = useSearchParams();
+  // The project is chosen in the dialog before this page opens.
+  const externalSiteId = params.get('project');
   const nav = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ScopePreview | null>(null);
@@ -70,18 +73,12 @@ export default function CreateGclPage() {
       fd.append('file', file);
       if (signature) fd.append('signature', signature);
       fd.append('siteCodes', JSON.stringify(selected));
+      if (externalSiteId) fd.append('externalSiteId', externalSiteId);
       Object.entries(form).forEach(([k, v]) => {
         if (v !== '' && v != null) fd.append(k, String(v));
       });
 
-      const res = await fetch('/api/gcl/scope/create', { method: 'POST', body: fd });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(
-          Array.isArray(body.message) ? body.message.join(', ') : body.message || 'Create failed',
-        );
-      }
-      const { packages } = (await res.json()) as { packages: Package[] };
+      const { packages } = await api.uploadForm<{ packages: Package[] }>('/gcl/scope/create', fd);
       nav(`/packages/${packages[0].id}`);
     } catch (e) {
       setError((e as Error).message);
@@ -95,8 +92,12 @@ export default function CreateGclPage() {
     : chosen.reduce((a, s) => a + s.total, 0);
   const unpriced = [...new Set(chosen.flatMap((s) => s.unpricedItems))];
 
+  // Reached without going through the project dialog.
+  if (!externalSiteId) return <Navigate to="/gcl" replace />;
+
   return (
     <div className="space-y-6">
+      {(
       <div>
         <h1 className="text-2xl font-bold tracking-tight gradient-text animate-gradient-pan">Create a GCL</h1>
         <p className="mt-1 text-sm text-fg-muted">
@@ -105,6 +106,7 @@ export default function CreateGclPage() {
           supply.
         </p>
       </div>
+      )}
 
       <FileDrop
         tour="dropzone"
@@ -174,7 +176,7 @@ export default function CreateGclPage() {
 
                         {on && (
                           <div className="mt-3 overflow-x-auto rounded-lg border border-line">
-                            <table className="w-full">
+                            <table className="w-full min-w-[720px]">
                               <thead>
                                 <tr>
                                   <th className="th w-10">#</th>
@@ -219,7 +221,7 @@ export default function CreateGclPage() {
             <div className="surface-head">
               <h2 className="text-sm font-semibold text-fg">Signature &amp; stamp</h2>
             </div>
-            <div className="grid gap-6 px-5 py-5 lg:grid-cols-[1.15fr_1fr]">
+            <div className="grid gap-6 px-4 py-5 sm:px-5 lg:grid-cols-[1.15fr_1fr]">
               <SignatureInput
                 label="Implementation contractor signature"
                 onChange={setSignature}
@@ -269,7 +271,7 @@ export default function CreateGclPage() {
               </div>
             )}
 
-            <div className="grid gap-4 px-5 py-5 md:grid-cols-4">
+            <div className="grid gap-4 px-4 py-5 sm:px-5 sm:grid-cols-2 lg:grid-cols-4">
               <Field label="Region" hint="Not present in the scope sheet">
                 <Input placeholder="West" value={form.region}
                        onChange={(e) => set('region', e.target.value)} />

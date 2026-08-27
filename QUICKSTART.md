@@ -108,7 +108,7 @@ Sign in with those, and you'll be asked to set your own password immediately. Th
 ### Generating a MOP
 
 1. Pick a project in the sidebar under **Projects** — RMS, CCTV, SIM Swap or Smart Locks.
-2. Choose the MOB category (Survey/Installation, PAT, …).
+2. Choose the MOP category (Survey/Installation, PAT, …).
 3. Fill TCN Summary, Site ID, Requester, PM and Site Impact.
 4. **Generate MOP** → download the `.docx`, or preview the PDF.
 

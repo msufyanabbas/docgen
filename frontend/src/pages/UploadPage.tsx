@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowRight, ScanLine } from 'lucide-react';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, ScanLine } from 'lucide-react';
 import FileDrop from '../components/FileDrop';
 import QuantityFieldPicker from '../components/QuantityFieldPicker';
 import { Alert, Spinner } from '../components/ui/Feedback';
@@ -11,6 +11,9 @@ import { api, money } from '../lib/api';
 import type { GclPreview, Package, QuantitySource } from '../lib/types';
 
 export default function UploadPage() {
+  const [params] = useSearchParams();
+  // The project is chosen in the dialog before this page opens.
+  const externalSiteId = params.get('project');
   const nav = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<GclPreview | null>(null);
@@ -56,7 +59,10 @@ export default function UploadPage() {
     setBusy('commit');
     setError(null);
     try {
-      const pkg = await api.upload<Package>('/gcl/upload', file, { ...form });
+      const pkg = await api.upload<Package>('/gcl/upload', file, {
+        ...form,
+        ...(externalSiteId ? { externalSiteId } : {}),
+      });
       nav(`/packages/${pkg.id}`);
     } catch (e) {
       setError((e as Error).message);
@@ -68,8 +74,12 @@ export default function UploadPage() {
   const selectedTotal =
     preview?.quantityColumns.find((c) => c.key === form.quantityFieldKey)?.total ?? 0;
 
+  // Reached without going through the project dialog.
+  if (!externalSiteId) return <Navigate to="/gcl" replace />;
+
   return (
     <div className="space-y-6">
+      {(
       <div>
         <h1 className="text-2xl font-bold tracking-tight gradient-text animate-gradient-pan">Upload a signed GCL</h1>
         <p className="mt-1 text-sm text-fg-muted">
@@ -77,6 +87,7 @@ export default function UploadPage() {
           and PAC are produced from the result.
         </p>
       </div>
+      )}
 
       <FileDrop
         accept="application/pdf,.pdf"
@@ -130,7 +141,7 @@ export default function UploadPage() {
             </dl>
 
             <div className="overflow-x-auto border-t border-slate-100">
-              <table className="w-full">
+              <table className="w-full min-w-[720px]">
                 <thead>
                   <tr>
                     <th className="th w-10">#</th>

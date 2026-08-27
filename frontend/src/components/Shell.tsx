@@ -1,23 +1,25 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ChevronRight,
   CircleHelp,
   FileSignature,
-  FileUp,
+  FileStack,
   FolderKanban,
-  Layers,
+  FolderTree,
+  LayoutDashboard,
+  Layers3,
   ListOrdered,
   LogOut,
+  Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  ScrollText,
   Sparkles,
   UserCog,
+  X,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Project } from '../lib/types';
 import { cn } from '../lib/cn';
 import { useTour } from './Tour';
 import { Button } from './ui/Button';
@@ -27,32 +29,56 @@ import { Aurora, ThemeToggle, useTheme } from './Theme';
 interface NavItem {
   to: string;
   label: string;
-  icon: typeof FileUp;
+  icon: typeof FileStack;
   hint: string;
   adminOnly?: boolean;
+  end?: boolean;
 }
 
+/**
+ * Grouped by what the person is trying to do, not by which module the code
+ * lives in: produce something, look something up, or configure the platform.
+ */
+/**
+ * Grouped by the thing being worked on, not by which module the code lives in.
+ *
+ * "Documents" is everything you produce and have produced. "Projects &
+ * Categories" is the structure those documents hang off — which is why Projects
+ * sits beside its two category screens rather than under a generic Configure
+ * heading. "Administration" is the admin-only surface.
+ */
 const GROUPS: { label: string; tour: string; items: NavItem[] }[] = [
   {
-    label: 'Workflow',
-    tour: 'nav',
+    label: 'Overview',
+    tour: 'nav-overview',
     items: [
-      { to: '/create-gcl', label: 'Create GCL', icon: FileSignature, hint: 'From a scope sheet' },
-      { to: '/upload', label: 'Upload GCL', icon: FileUp, hint: 'From a signed PDF' },
+      { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, hint: 'Activity at a glance' },
     ],
   },
   {
-    label: 'Library',
-    tour: 'nav-library',
+    label: 'Documents',
+    tour: 'nav-documents',
     items: [
-      { to: '/packages', label: 'Packages', icon: Layers, hint: 'Jobs and documents' },
-      { to: '/upl', label: 'Price List', icon: ListOrdered, hint: 'UPL versions' },
+      // GCL is the list of packages too — BOQ/WO/PAC belong to a GCL, so
+      // splitting them into a separate menu only hid the relationship.
+      { to: '/gcl', label: 'GCL documents', icon: FileSignature, hint: 'BOQ, Work Order, PAC' },
+      { to: '/mop', label: 'MOP documents', icon: ScrollText, hint: 'Method of Procedure', end: true },
+    ],
+  },
+  {
+    label: 'Projects & Categories',
+    tour: 'nav-projects',
+    items: [
+      { to: '/projects', label: 'Projects', icon: FolderKanban, hint: 'Add, edit, retire' },
+      { to: '/categories/projects', label: 'Project categories', icon: FolderTree, hint: 'RMS, CCTV, SIM Swap…' },
+      { to: '/categories/mops', label: 'MOP categories', icon: Layers3, hint: 'Survey, Installation, PAT' },
     ],
   },
   {
     label: 'Administration',
     tour: 'nav-admin',
     items: [
+      { to: '/upl', label: 'Price list', icon: ListOrdered, hint: 'UPL versions', adminOnly: true },
       { to: '/users', label: 'Users', icon: UserCog, hint: 'Admins and PMs', adminOnly: true },
     ],
   },
@@ -60,19 +86,95 @@ const GROUPS: { label: string; tour: string; items: NavItem[] }[] = [
 
 export default function Shell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(true);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsOpen, setProjectsOpen] = useState(true);
+  const [drawer, setDrawer] = useState(false);
   const { start } = useTour();
   const { resolved } = useTheme();
   const { user, isAdmin, logout } = useAuth();
   const location = useLocation();
   const nav = useNavigate();
 
-  // Projects drive their own nav entries, so adding one in the UI makes it
-  // appear here without a code change.
+  // Navigating on a phone should close the drawer, not leave it over the page.
+  useEffect(() => setDrawer(false), [location.pathname]);
+
+  // Stop the page scrolling behind the open drawer.
   useEffect(() => {
-    api.get<Project[]>('/projects').then(setProjects).catch(() => setProjects([]));
-  }, []);
+    document.body.style.overflow = drawer ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [drawer]);
+
+
+
+  const visibleGroups = GROUPS.filter((g) => g.items.some((i) => !i.adminOnly || isAdmin));
+
+  /** Same list in the desktop rail and the mobile drawer — one source of truth. */
+  const navList = (expanded: boolean) => (
+    <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5 no-scrollbar">
+      {GROUPS.filter((g) => g.items.some((i) => !i.adminOnly || isAdmin)).map((group) => (
+        <div key={group.label} data-tour={group.tour}>
+          <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[.12em] text-fg-subtle"
+          >
+            {group.label}
+          </motion.p>
+        )}
+          </AnimatePresence>
+
+          <div className="space-y-1">
+        {group.items
+          .filter((item) => !item.adminOnly || isAdmin)
+          .map(({ to, label, icon: Icon, hint, end }) => (
+          <NavLink key={to} to={to} end={end} title={!expanded ? label : undefined}>
+            {({ isActive }) => (
+              <span
+            className={cn(
+              'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors',
+              isActive ? 'text-white' : 'text-fg-muted hover:bg-line/40 hover:text-fg',
+            )}
+              >
+            {isActive && (
+              <motion.span
+                layoutId={expanded ? 'nav-active' : 'nav-active-mini'}
+                transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                className="absolute inset-0 -z-10 rounded-xl bg-brand-gradient shadow-soft"
+              />
+            )}
+            <Icon size={17} className="shrink-0" />
+            <AnimatePresence initial={false}>
+              {expanded && (
+                <motion.span
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="min-w-0 flex-1"
+                >
+                  <span className="block truncate text-sm font-medium">{label}</span>
+                  <span
+                className={cn(
+                  'block truncate text-[11px]',
+                  isActive ? 'text-white/70' : 'text-fg-subtle',
+                )}
+                  >
+                {hint}
+                  </span>
+                </motion.span>
+              )}
+            </AnimatePresence>
+              </span>
+            )}
+          </NavLink>
+        ))}
+          </div>
+        </div>
+      ))}
+    </nav>
+  );
 
   return (
     <div className="flex min-h-screen">
@@ -109,139 +211,7 @@ export default function Shell({ children }: { children: ReactNode }) {
 
         <div className="hairline" />
 
-        <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5 no-scrollbar">
-          {GROUPS.filter((g) => g.items.some((i) => !i.adminOnly || isAdmin)).map((group) => (
-            <div key={group.label} data-tour={group.tour}>
-              <AnimatePresence initial={false}>
-                {open && (
-                  <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[.12em] text-fg-subtle"
-                  >
-                    {group.label}
-                  </motion.p>
-                )}
-              </AnimatePresence>
-
-              <div className="space-y-1">
-                {group.items
-                  .filter((item) => !item.adminOnly || isAdmin)
-                  .map(({ to, label, icon: Icon, hint }) => (
-                  <NavLink key={to} to={to} title={!open ? label : undefined}>
-                    {({ isActive }) => (
-                      <span
-                        className={cn(
-                          'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors',
-                          isActive ? 'text-white' : 'text-fg-muted hover:bg-line/40 hover:text-fg',
-                        )}
-                      >
-                        {isActive && (
-                          <motion.span
-                            layoutId="nav-active"
-                            transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                            className="absolute inset-0 -z-10 rounded-xl bg-brand-gradient shadow-soft"
-                          />
-                        )}
-                        <Icon size={17} className="shrink-0" />
-                        <AnimatePresence initial={false}>
-                          {open && (
-                            <motion.span
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                              className="min-w-0 flex-1"
-                            >
-                              <span className="block truncate text-sm font-medium">{label}</span>
-                              <span
-                                className={cn(
-                                  'block truncate text-[11px]',
-                                  isActive ? 'text-white/70' : 'text-fg-subtle',
-                                )}
-                              >
-                                {hint}
-                              </span>
-                            </motion.span>
-                          )}
-                        </AnimatePresence>
-                      </span>
-                    )}
-                  </NavLink>
-                ))}
-              </div>
-            </div>
-          ))}
-          {/* Projects — dynamic, each expands to its MOB categories */}
-          <div data-tour="nav-projects">
-            <AnimatePresence initial={false}>
-              {open && (
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[.12em] text-fg-subtle"
-                >
-                  Projects
-                </motion.p>
-              )}
-            </AnimatePresence>
-
-            <NavLink to="/projects" title={!open ? 'Projects' : undefined}>
-              {({ isActive }) => (
-                <span
-                  className={cn(
-                    'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors',
-                    isActive ? 'text-white' : 'text-fg-muted hover:bg-line/50 hover:text-fg',
-                  )}
-                >
-                  {isActive && (
-                    <motion.span
-                      layoutId="nav-active"
-                      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                      className="absolute inset-0 -z-10 rounded-xl bg-brand-gradient shadow-soft"
-                    />
-                  )}
-                  <FolderKanban size={17} className="shrink-0" />
-                  {open && (
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">All projects</span>
-                      <span className={cn('block truncate text-[11px]', isActive ? 'text-white/70' : 'text-fg-subtle')}>
-                        {isAdmin ? 'Manage projects and MOBs' : 'Browse projects'}
-                      </span>
-                    </span>
-                  )}
-                </span>
-              )}
-            </NavLink>
-
-            {open && projects.length > 0 && (
-              <div className="mt-1 space-y-0.5 border-l border-line/70 pl-3 ml-4">
-                {projects.map((p) => (
-                  <NavLink key={p.id} to={`/mop/${p.slug}`}>
-                    {({ isActive }) => (
-                      <span
-                        className={cn(
-                          'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors',
-                          isActive
-                            ? 'bg-line/60 font-medium text-fg'
-                            : 'text-fg-muted hover:bg-line/40 hover:text-fg',
-                        )}
-                      >
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ background: p.colour ?? '#44489D' }}
-                        />
-                        <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                        <span className="text-[10px] text-fg-subtle">{p.mobs.length}</span>
-                      </span>
-                    )}
-                  </NavLink>
-                ))}
-              </div>
-            )}
-          </div>
-        </nav>
+        {navList(open)}
 
         <div className="px-3 pb-4">
           <button
@@ -254,34 +224,103 @@ export default function Shell({ children }: { children: ReactNode }) {
         </div>
       </motion.aside>
 
+      {/* ---------- mobile drawer ---------- */}
+      <AnimatePresence>
+        {drawer && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDrawer(false)}
+              className="fixed inset-0 z-40 bg-brand-950/50 backdrop-blur-sm lg:hidden"
+            />
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 34 }}
+              className="chrome fixed inset-y-0 left-0 z-50 flex w-[min(300px,85vw)] flex-col border-r border-line/60 lg:hidden"
+            >
+              <div className="flex h-[60px] items-center justify-between gap-2 px-4">
+                <CoBrand compact />
+                <button
+                  onClick={() => setDrawer(false)}
+                  className="rounded-lg p-2 text-fg-subtle transition hover:bg-line/50 hover:text-fg"
+                  aria-label="Close menu"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="hairline" />
+
+              {navList(true)}
+
+              <div className="border-t border-line/60 p-3">
+                <div className="mb-2 flex justify-center"><ThemeToggle /></div>
+                <button
+                  onClick={() => nav('/account')}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-line/50"
+                >
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-gradient text-xs font-bold text-white">
+                    {(user?.name ?? '?').slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-fg">{user?.name}</span>
+                    <span className="block text-[11px] text-fg-subtle">{user?.role}</span>
+                  </span>
+                </button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* ---------- main column ---------- */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="chrome sticky top-0 z-20 border-b border-line/60">
-          <div className="flex h-[68px] items-center gap-4 px-5 lg:px-8">
-            <CoBrand compact className="lg:hidden" />
+          <div className="flex h-[60px] items-center gap-2 px-4 sm:gap-4 lg:h-[68px] lg:px-8">
+            <button
+              onClick={() => setDrawer(true)}
+              className="-ml-1 rounded-lg p-2 text-fg-muted transition hover:bg-line/50 hover:text-fg lg:hidden"
+              aria-label="Open menu"
+            >
+              <Menu size={20} />
+            </button>
 
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-[15px] font-semibold text-fg">
+              <h1 className="truncate text-sm font-semibold text-fg sm:text-[15px]">
                 {titleFor(location.pathname)}
               </h1>
-              <p className="truncate text-[11px] text-fg-subtle">{subtitleFor(location.pathname)}</p>
+              <p className="hidden truncate text-[11px] text-fg-subtle sm:block">
+                {subtitleFor(location.pathname)}
+              </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <Button variant="outline" size="sm" onClick={start} data-tour="help">
-                <CircleHelp size={14} /> <span className="hidden sm:inline">Take the tour</span>
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="hidden sm:block">
+                <ThemeToggle />
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={start}
+                data-tour="help"
+                className="hidden sm:inline-flex"
+              >
+                <CircleHelp size={14} /> <span className="hidden md:inline">Take the tour</span>
               </Button>
 
               <button
                 onClick={() => nav('/account')}
                 title="Your account"
-                className="flex items-center gap-2 rounded-xl border border-line bg-card/60 py-1 pl-1 pr-3 transition hover:border-cyan-brand/40"
+                className="hidden items-center gap-2 rounded-xl border border-line bg-card/60 py-1 pl-1 pr-3 transition hover:border-cyan-brand/40 lg:flex"
               >
                 <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-gradient text-[11px] font-bold text-white">
                   {(user?.name ?? '?').slice(0, 1).toUpperCase()}
                 </span>
-                <span className="hidden text-left leading-tight sm:block">
+                <span className="text-left leading-tight">
                   <span className="block max-w-[120px] truncate text-xs font-medium text-fg">{user?.name}</span>
                   <span className="block text-[10px] text-fg-subtle">{user?.role}</span>
                 </span>
@@ -293,26 +332,9 @@ export default function Shell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          {/* Mobile nav — the sidebar is desktop-only. */}
-          <div className="flex gap-1 overflow-x-auto px-4 pb-2.5 no-scrollbar lg:hidden">
-            {GROUPS.flatMap((g) => g.items).map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  cn(
-                    'flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition',
-                    isActive ? 'bg-brand-gradient text-white' : 'text-fg-muted hover:bg-line/50',
-                  )
-                }
-              >
-                <Icon size={14} /> {label}
-              </NavLink>
-            ))}
-          </div>
         </header>
 
-        <main className="flex-1 px-5 py-7 lg:px-8 lg:py-9">
+        <main className="flex-1 px-4 py-5 sm:px-5 sm:py-7 lg:px-8 lg:py-9">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -327,11 +349,14 @@ export default function Shell({ children }: { children: ReactNode }) {
           </AnimatePresence>
         </main>
 
-        <footer className="px-5 pb-6 lg:px-8">
+        <footer className="px-4 pb-6 sm:px-5 lg:px-8">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 text-[11px] text-fg-subtle">
             <Sparkles size={12} />
             <span>Smart Life Advanced IT · Tawal document automation</span>
-            <CoBrand compact className="ml-auto opacity-60 grayscale transition hover:opacity-100 hover:grayscale-0" />
+            <CoBrand
+              compact
+              className="ml-auto hidden opacity-60 grayscale transition hover:opacity-100 hover:grayscale-0 sm:flex"
+            />
           </div>
         </footer>
       </div>
@@ -340,10 +365,19 @@ export default function Shell({ children }: { children: ReactNode }) {
 }
 
 const TITLES: Record<string, [string, string]> = {
-  '/create-gcl': ['Create a GCL', 'Turn an approved scope of work into a signed-ready handover form'],
-  '/upload': ['Upload a signed GCL', 'Read the table, price it, and build the downstream documents'],
+  '/dashboard': ['Dashboard', 'Activity across MOPs, packages and projects'],
+  '/gcl': ['GCL documents', 'Handing Over GCLs and the documents built from them'],
+  '/gcl/create': ['Create a GCL', 'From an approved scope of work'],
+  '/gcl/upload': ['Upload a GCL', 'Read a signed GCL and price it'],
+  '/mop': ['MOP documents', 'Method of Procedure, grouped by project'],
+  '/mop/new': ['New MOP', 'One site, or many from a spreadsheet'],
   '/packages': ['Packages', 'Every job and the documents generated for it'],
   '/upl': ['Unit Price List', 'The commercial reference behind every BOQ and Work Order'],
+  '/projects': ['Projects', 'Add, edit and retire projects'],
+  '/categories/projects': ['Project categories', 'The kinds of project you run'],
+  '/categories/mops': ['MOP categories', 'Stages of work and the formats they produce'],
+  '/users': ['Users', 'Admins and project managers'],
+  '/account': ['Your account', 'Profile and password'],
 };
 
 const titleFor = (path: string) =>

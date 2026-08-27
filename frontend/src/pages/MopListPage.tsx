@@ -1,0 +1,214 @@
+import { ChevronDown, Download, FileSignature, FileText, Plus, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Alert, Empty, Spinner } from '../components/ui/Feedback';
+import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Input, Select } from '../components/ui/Field';
+import { api, shortDate } from '../lib/api';
+import type { MopCategory, MopDocument, Paged, Project } from '../lib/types';
+
+/** Every MOP produced, grouped by project — the library view. */
+export default function MopListPage() {
+  const [params, setParams] = useSearchParams();
+  const [docs, setDocs] = useState<MopDocument[] | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [categories, setCategories] = useState<MopCategory[]>([]);
+  const [search, setSearch] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  const projectId = params.get('project') ?? '';
+  const mopCategoryId = params.get('category') ?? '';
+
+  const load = useCallback(() => {
+    const q = new URLSearchParams({ limit: '200' });
+    if (projectId) q.set('projectId', projectId);
+    if (mopCategoryId) q.set('mopCategoryId', mopCategoryId);
+    if (search) q.set('search', search);
+
+    api
+      .get<Paged<MopDocument>>(`/mop?${q}`)
+      .then((r) => setDocs(r.items))
+      .catch((e) => setError(e.message));
+  }, [projectId, mopCategoryId, search]);
+
+  useEffect(() => {
+    const t = setTimeout(load, 250);
+    return () => clearTimeout(t);
+  }, [load]);
+
+  useEffect(() => {
+    api.get<Project[]>('/projects').then(setProjects).catch(() => setProjects([]));
+    api.get<MopCategory[]>('/categories/mops').then(setCategories).catch(() => setCategories([]));
+  }, []);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, { project: MopDocument['project']; items: MopDocument[] }>();
+    for (const d of docs ?? []) {
+      const key = d.project?.id ?? 'unknown';
+      if (!map.has(key)) map.set(key, { project: d.project, items: [] });
+      map.get(key)!.items.push(d);
+    }
+    return [...map.entries()].sort((a, b) => b[1].items.length - a[1].items.length);
+  }, [docs]);
+
+  const setParam = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    value ? next.set(key, value) : next.delete(key);
+    setParams(next, { replace: true });
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight gradient-text animate-gradient-pan">
+            MOP documents
+          </h1>
+          <p className="mt-1 text-sm text-fg-muted">
+            Method of Procedure documents, grouped by project.
+          </p>
+        </div>
+
+        <Link to="/mop/new">
+          <Button variant="gradient">
+            <Plus size={15} /> New MOP
+          </Button>
+        </Link>
+      </div>
+
+      {error && <Alert kind="error">{error}</Alert>}
+
+      {/* filters */}
+      <Card>
+        <div className="flex flex-wrap items-end gap-3 px-5 py-4">
+          <div className="relative min-w-[220px] flex-1">
+            <label className="label">Search</label>
+            <Search size={15} className="absolute left-3 top-[34px] text-fg-subtle" />
+            <Input
+              className="pl-9"
+              placeholder="Site ID, summary or PM"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="min-w-[180px]">
+            <label className="label">Project</label>
+            <Select value={projectId} onChange={(e) => setParam('project', e.target.value)}>
+              <option value="">All projects</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </Select>
+          </div>
+          <div className="min-w-[180px]">
+            <label className="label">MOP category</label>
+            <Select value={mopCategoryId} onChange={(e) => setParam('category', e.target.value)}>
+              <option value="">All categories</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </Select>
+          </div>
+        </div>
+      </Card>
+
+      {!docs && <Spinner label="Loading documents…" />}
+
+      {docs && docs.length === 0 && (
+        <Empty icon={<FileSignature size={22} />}>
+          No MOP documents match. <Link to="/mop/new" className="font-medium text-cyan-brand">Create one</Link>.
+        </Empty>
+      )}
+
+      {grouped.map(([key, group]) => {
+        const isCollapsed = collapsed[key];
+        return (
+          <Card key={key}>
+            <button
+              onClick={() => setCollapsed((c) => ({ ...c, [key]: !c[key] }))}
+              className="flex w-full items-center gap-3 px-5 py-4 text-left"
+            >
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ background: group.project?.projectCategory?.colour ?? '#44489D' }}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-fg">
+                  {group.project?.name ?? 'Unassigned'}
+                </span>
+                <span className="block text-[11px] text-fg-subtle">
+                  {group.project?.projectCategory?.name}
+                </span>
+              </span>
+              <Badge tone="neutral">{group.items.length}</Badge>
+              <ChevronDown
+                size={16}
+                className={`shrink-0 text-fg-subtle transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+              />
+            </button>
+
+            {!isCollapsed && (
+              <div className="overflow-x-auto border-t border-line/60">
+                <table className="w-full min-w-[720px]">
+                  <thead>
+                    <tr>
+                      <th className="th">Site ID</th>
+                      <th className="th">Category</th>
+                      <th className="th">TCN Summary</th>
+                      <th className="th">PM</th>
+                      <th className="th">Requester</th>
+                      <th className="th w-24">Impact</th>
+                      <th className="th">Created</th>
+                      <th className="th text-right">Files</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.items.map((d) => (
+                      <tr key={d.id} className="row-hover">
+                        <td className="td font-mono text-xs font-semibold text-fg">{d.siteId}</td>
+                        <td className="td text-xs">{d.mopCategory?.name}</td>
+                        <td className="td max-w-xs truncate text-fg-muted" title={d.tcnSummary}>
+                          {d.tcnSummary}
+                        </td>
+                        <td className="td text-xs">{d.pmName}</td>
+                        <td className="td text-xs">{d.requesterName}</td>
+                        <td className="td">
+                          <Badge tone={d.siteImpact === 'YES' ? 'warn' : 'neutral'}>{d.siteImpact}</Badge>
+                        </td>
+                        <td className="td text-xs text-fg-subtle">{shortDate(d.createdAt)}</td>
+                        <td className="td">
+                          <div className="flex justify-end gap-1.5">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                api.download(`/mop/${d.id}/download/docx`, d.docxFileName ?? 'mop.docx')
+                              }
+                            >
+                              <Download size={13} /> DOCX
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={!d.pdfFileName}
+                              onClick={() => api.openInline(`/mop/${d.id}/download/pdf?inline=true`)}
+                            >
+                              <FileText size={13} /> PDF
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}

@@ -102,8 +102,7 @@ export default function PackageDetailPage() {
     try {
       const fd = new FormData();
       fd.append('signature', file);
-      const res = await fetch(`/api/packages/${id}/signature`, { method: 'POST', body: fd });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Upload failed');
+      await api.uploadForm(`/packages/${id}/signature`, fd);
       await load();
       setNotice('Signature updated. Regenerate the GCL to apply it.');
     } catch (e) {
@@ -158,9 +157,12 @@ export default function PackageDetailPage() {
           <Button variant="gradient" onClick={generate} disabled={busy !== null}>
             {busy === 'generate' ? <Spinner label="Generating…" /> : (<><RefreshCw size={15} /> Generate documents</>)}
           </Button>
-          <a className="inline-flex items-center gap-2 rounded-xl bg-brand-800 px-4 py-2 text-sm font-medium text-white shadow-soft transition hover:bg-brand-700" href={api.fileUrl(`/packages/${id}/bundle`)}>
+          <Button
+            variant="primary"
+            onClick={() => api.download(`/packages/${id}/bundle`, 'package.zip')}
+          >
             <PackageIcon size={15} /> Download all (.zip)
-          </a>
+          </Button>
         </div>
       </div>
 
@@ -192,7 +194,7 @@ export default function PackageDetailPage() {
       {/* header fields */}
       <div className="surface">
         <div className="surface-head"><h2 className="text-sm font-semibold text-fg">Package details</h2></div>
-        <div className="grid gap-4 px-5 py-5 md:grid-cols-4">
+        <div className="grid gap-4 px-4 py-5 sm:px-5 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Quantity source">
             <Select value={pkg.quantitySource}
                     onChange={(e) => patch({ quantitySource: e.target.value as QuantitySource })}>
@@ -237,8 +239,8 @@ export default function PackageDetailPage() {
           <h2 className="text-sm font-semibold text-fg">BOQ lines</h2>
           <span className="text-xs text-fg-subtle">TAG # comes from Tawal's asset registry — fill it in here</span>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className="-mx-px overflow-x-auto">
+          <table className="w-full min-w-[720px]">
             <thead>
               <tr>
                 <th className="th w-10">#</th>
@@ -298,7 +300,7 @@ export default function PackageDetailPage() {
           </span>
         </div>
 
-        <div className="grid gap-5 px-5 py-5 lg:grid-cols-[1.15fr_1fr]">
+        <div className="grid gap-5 px-4 py-5 sm:px-5 lg:grid-cols-[1.15fr_1fr]">
           <SignatureInput onChange={setPendingSignature} />
 
           <div className="flex flex-col justify-between gap-4">
@@ -344,15 +346,25 @@ export default function PackageDetailPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <a className="inline-flex items-center gap-2 rounded-xl border border-line bg-card/70 px-3 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-card !px-3 !py-1.5 text-xs"
-                     href={api.fileUrl(`/packages/${id}/documents/${type}/preview`)} target="_blank" rel="noreferrer">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      type.endsWith('PDF')
+                        ? api.openInline(`/packages/${id}/documents/${type}/preview`)
+                        : api.download(`/packages/${id}/documents/${type}/preview`, label)
+                    }
+                  >
                     Live preview
-                  </a>
+                  </Button>
                   {doc && (
-                    <a className="inline-flex items-center gap-2 rounded-xl border border-line bg-card/70 px-3 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-card !px-3 !py-1.5 text-xs"
-                       href={api.fileUrl(`/documents/${doc.id}/download`)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => api.download(`/documents/${doc.id}/download`, doc.fileName)}
+                    >
                       <Download size={13} /> Download
-                    </a>
+                    </Button>
                   )}
                 </div>
               </div>

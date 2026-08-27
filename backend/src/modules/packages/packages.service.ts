@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma, QuantitySource } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UplService } from '../upl/upl.service';
+import { ExternalProjectsService } from '../external-projects/external-projects.service';
 import { ParsedGcl } from '../gcl/gcl.parser';
 import { CreateFromGclDto, UpdatePackageDto, QueryPackagesDto } from './packages.dto';
 
@@ -29,6 +30,7 @@ export class PackagesService {
     private readonly prisma: PrismaService,
     private readonly upl: UplService,
     private readonly config: ConfigService,
+    private readonly externalProjects: ExternalProjectsService,
   ) {}
 
   /* ------------------------------------------------------------ creation */
@@ -88,6 +90,21 @@ export class PackagesService {
 
     const serviceDate = dto.serviceDate ?? parsed.gclDate ?? null;
 
+    // The project is required, so a lookup failure is fatal here — better to
+    // refuse than to create a package that can never be traced back.
+    const tracked = await this.externalProjects.findBySiteId(dto.externalSiteId);
+    if (!tracked) {
+      throw new BadRequestException(
+        `Project "${dto.externalSiteId}" was not found in the tracker. ` +
+          `It may have changed status, or the projects service may be unreachable.`,
+      );
+    }
+    if (tracked.patStatus?.toLowerCase() !== 'approved') {
+      throw new BadRequestException(
+        `Project "${tracked.siteId}" does not have an approved PAT, so a signed GCL cannot be uploaded against it.`,
+      );
+    }
+
     const pkg = await this.prisma.package.create({
       data: {
         woNumber,
@@ -122,6 +139,11 @@ export class PackagesService {
         discount: round2(discount),
         foc: round2(foc),
         netAmount: net,
+
+        externalProjectId: tracked.id,
+        externalSiteId: tracked.siteId,
+        externalProjectTitle: tracked.title,
+        externalCategory: tracked.category,
 
         notes: parsed.notes,
         sourceFileName: source?.fileName,

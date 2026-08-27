@@ -33,7 +33,7 @@ export interface TourStep {
 }
 
 // Bumped when the tour changes, so returning users see the new walkthrough once.
-const STORAGE_KEY = 'docgen.tour.completed.v2';
+const STORAGE_KEY = 'docgen.tour.completed.v6';
 
 const STEPS: TourStep[] = [
   {
@@ -41,86 +41,88 @@ const STEPS: TourStep[] = [
     title: 'Welcome to Smart Life DocGen',
     body: (
       <>
-        Two jobs live here: the <b>commercial pipeline</b> (GCL → BOQ → Work Order → PAC)
-        and <b>MOPs</b>. Let me show you around — about a minute.
+        Two families of paperwork live here: the <b>GCL pipeline</b> (BOQ, Work Order, PAC)
+        and <b>MOP</b> documents. About a minute to show you around.
       </>
     ),
+    route: '/dashboard',
+  },
+  {
+    id: 'dashboard',
+    title: 'Your dashboard',
+    body: (
+      <>
+        Where everything stands — how many MOPs per project, activity over the last six months,
+        and the most recent documents. Each card links straight through.
+      </>
+    ),
+    target: 'dashboard',
+    placement: 'bottom',
   },
   {
     id: 'nav',
-    title: 'Two ways into the pipeline',
+    title: 'Navigation, by what you are doing',
     body: (
       <>
-        <b>Create GCL</b> starts from an approved scope sheet. <b>Upload GCL</b> starts from
-        one that has already been signed. Both end in the same place.
+        <b>Produce</b> makes documents. <b>Library</b> is what you have already made.
+        <b> Configure</b> is the setup behind it all.
       </>
     ),
-    target: 'nav',
+    target: 'nav-documents',
     placement: 'right',
-    route: '/create-gcl',
   },
   {
-    id: 'drop',
-    title: 'Start by dropping a file',
+    id: 'gcl',
+    title: 'GCL documents',
     body: (
       <>
-        Drag it in, or click to browse. Nothing is saved yet — you get a full preview of what
-        was read before anything is committed.
+        Every GCL and its BOQ, Work Order and PAC, grouped by project.{' '}
+        <b>Create GCL</b> and <b>Upload GCL</b> ask which project first — from the Tawal
+        tracker, filtered by approved <b>PAT TCN</b> and <b>PAT</b> respectively.
       </>
     ),
-    target: 'dropzone',
+    target: 'gcl-actions',
     placement: 'bottom',
+    route: '/gcl',
   },
   {
     id: 'quantity',
     title: 'You choose what the money is based on',
     body: (
       <>
-        Once the document is read, its numeric columns appear with their printed headings —
-        <i> Design QTY</i>, <i>As Bulit</i>, whatever the file actually says. Pick which one
-        drives the totals. Nothing is hard-coded, and you can change it later.
+        Once a document is read, its numeric columns appear with their printed headings —
+        <i> Design QTY</i>, <i>As Bulit</i>, whatever the file says. Pick which drives the
+        totals. Nothing is hard-coded, and it can be changed later.
       </>
     ),
-    target: 'dropzone',
+    target: 'gcl-actions',
     placement: 'bottom',
   },
   {
-    id: 'projects',
-    title: 'Projects and MOPs',
-    body: (
-      <>
-        Create a project, choose its type — <b>RMS</b>, <b>CCTV</b>, <b>SIM Swap</b> or{' '}
-        <b>Smart Locks</b> — and the right MOB categories come with it. SIM Swap is survey-only;
-        the rest also get Installation and PAT.
-      </>
-    ),
-    target: 'nav-projects',
-    placement: 'right',
-    route: '/projects',
-  },
-  {
     id: 'mop',
-    title: 'Generating a MOP',
+    title: 'MOP documents',
     body: (
       <>
-        Pick a project in the sidebar, choose the MOB, fill the five Document Control fields.
-        You get a Word file and a PDF built from Tawal's own template — or use{' '}
-        <b>Bulk from Excel</b> for many sites at once.
+        Everything you have produced, grouped by project. <b>New MOP</b> walks through project,
+        category and the five Document Control fields — or generates many at once from a
+        spreadsheet.
+      </>
+    ),
+    target: 'nav-documents',
+    placement: 'right',
+    route: '/mop',
+  },
+  {
+    id: 'configure',
+    title: 'Projects and categories',
+    body: (
+      <>
+        A <b>project</b> belongs to a <b>project category</b> (RMS, CCTV, SIM Swap…), and that
+        category is paired with <b>MOP categories</b> (Survey, Installation, PAT) to decide
+        which format each produces. Add and remove all of it here.
       </>
     ),
     target: 'nav-projects',
-    placement: 'right',
-  },
-  {
-    id: 'library',
-    title: 'Everything you make lives here',
-    body: (
-      <>
-        <b>Packages</b> keeps every job with its documents. <b>Price List</b> holds the UPL
-        that drives the pricing.
-      </>
-    ),
-    target: 'nav-library',
     placement: 'right',
   },
   {

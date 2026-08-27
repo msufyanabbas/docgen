@@ -51,6 +51,16 @@ export const api = {
       .then((r) => handle<T>(r));
   },
 
+  /**
+   * Multipart with more than one file, or with a pre-built FormData.
+   *
+   * Exists because hand-rolling `fetch` for these forgets the bearer token —
+   * which is exactly how /gcl/scope/create started returning 401.
+   */
+  uploadForm: <T>(path: string, form: FormData) =>
+    fetch(`${BASE}${path}`, { method: 'POST', body: form, headers: authHeaders() })
+      .then((r) => handle<T>(r)),
+
   /** Downloads go through fetch too, since <a href> can't carry the bearer token. */
   download: async (path: string, fallbackName = 'download') => {
     const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
@@ -86,7 +96,9 @@ export const api = {
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   },
 
-  fileUrl: (path: string) => `${BASE}${path}`,
+  // No fileUrl helper on purpose: an <a href> cannot carry the bearer token, so
+  // every such link 401s. Use download() or openInline() instead — they fetch
+  // with the header and hand back a blob.
 };
 
 export const money = (v: string | number | null | undefined, currency = 'SAR') =>

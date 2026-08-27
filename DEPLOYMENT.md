@@ -92,6 +92,33 @@ npm run deploy
 
 ---
 
+## What a deploy looks like now
+
+```
+$ npm run deploy
+
+🚀 Deploying Tawal DocGen
+   root@147.79.114.76 · master · port 8095
+
+📥 Fetching latest code...
+   a3f9c21 fix: mobile drawer
+🔨 Building backend...
+🔨 Building frontend...
+🔄 Restarting...
+⏳ Health check...
+   ✅ {"status":"ok","db":true,"uplItems":43,...}
+   backend   Up 3 seconds (healthy)
+   db        Up 2 minutes (healthy)
+   frontend  Up 3 seconds
+
+🎉 Done in 94s
+```
+
+One SSH session, quiet builds, no page of apt output. Add `--verbose` when a build
+fails and you need to see why.
+
+---
+
 ## Everyday use
 
 ```bash

@@ -34,6 +34,15 @@ export class UsersService {
     return { items, total, page: q.page ?? 1, limit: take };
   }
 
+  /** Active accounts, name and email only — used to populate name pickers. */
+  directory() {
+    return this.prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, email: true, role: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({ where: { id }, select: SAFE });
     if (!user) throw new NotFoundException('User not found');

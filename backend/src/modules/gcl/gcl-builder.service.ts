@@ -4,6 +4,7 @@ import { PackageOrigin, PackageStatus, Prisma, QuantitySource } from '@prisma/cl
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { UplService } from '../upl/upl.service';
+import { ExternalProjectsService } from '../external-projects/external-projects.service';
 import { parseScopeWorkbook, ScopeSite } from './scope.parser';
 import { CreateGclDto, ScopeSiteInputDto } from './gcl.dto';
 
@@ -19,6 +20,7 @@ export class GclBuilderService {
     private readonly storage: StorageService,
     private readonly upl: UplService,
     private readonly config: ConfigService,
+    private readonly externalProjects: ExternalProjectsService,
   ) {}
 
   /* --------------------------------------------------------------- preview */
@@ -84,6 +86,19 @@ export class GclBuilderService {
       throw new BadRequestException(`Scope sheet could not be read: ${e.message}`);
     });
 
+    const tracked = await this.externalProjects.findBySiteId(dto.externalSiteId);
+    if (!tracked) {
+      throw new BadRequestException(
+        `Project "${dto.externalSiteId}" was not found in the tracker. ` +
+          `It may have changed status, or the projects service may be unreachable.`,
+      );
+    }
+    if (tracked.patTcnStatus?.toLowerCase() !== 'approved') {
+      throw new BadRequestException(
+        `Project "${tracked.siteId}" does not have an approved PAT TCN, so a GCL cannot be created against it.`,
+      );
+    }
+
     const selected = dto.siteCodes?.length
       ? parsed.sites.filter((s) => dto.siteCodes!.includes(s.siteCode ?? s.tawalSiteId ?? ''))
       : parsed.sites;
@@ -98,7 +113,9 @@ export class GclBuilderService {
 
     const created = [];
     for (const site of selected) {
-      created.push(await this.createOne(site, dto, overrides, signature, parsed.quantityColumns));
+      created.push(
+        await this.createOne(site, dto, overrides, signature, parsed.quantityColumns, tracked),
+      );
     }
 
     return { packages: created, warnings: parsed.warnings };
@@ -110,6 +127,7 @@ export class GclBuilderService {
     overrides: Map<string, ScopeSiteInputDto>,
     signature?: { fileName: string; filePath: string },
     parsedColumns: { key: string; label: string }[] = [],
+    tracked?: { id: string; siteId: string; title: string; category: string | null } | null,
   ) {
     const defaults = this.config.get('defaults');
     const key = site.siteCode ?? site.tawalSiteId ?? '';
@@ -213,6 +231,11 @@ export class GclBuilderService {
         discount: round2(discount),
         foc: round2(foc),
         netAmount: round2(gross.minus(discount).minus(foc)),
+
+        externalProjectId: tracked?.id ?? null,
+        externalSiteId: tracked?.siteId ?? dto.externalSiteId,
+        externalProjectTitle: tracked?.title ?? null,
+        externalCategory: tracked?.category ?? null,
 
         notes: dto.notes ?? null,
         lines: { create: lines },

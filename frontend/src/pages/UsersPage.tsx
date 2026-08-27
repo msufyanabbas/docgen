@@ -119,7 +119,7 @@ export default function UsersPage() {
       {showNew && (
         <Card>
           <CardHead title="New user" hint="They set their own password at first sign-in" icon={<Plus size={15} />} />
-          <div className="grid gap-4 px-5 py-5 md:grid-cols-4">
+          <div className="grid gap-4 px-4 py-5 sm:px-5 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Full name">
               <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
             </Field>
@@ -180,8 +180,8 @@ export default function UsersPage() {
       {data && data.items.length === 0 && <Empty icon={<UserCog size={22} />}>No users match that search.</Empty>}
 
       {data && data.items.length > 0 && (
-        <Card className="overflow-x-auto">
-          <table className="w-full">
+        <Card className="-mx-px overflow-x-auto">
+          <table className="w-full min-w-[720px]">
             <thead>
               <tr>
                 <th className="th">Name</th>
