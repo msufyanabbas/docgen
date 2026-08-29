@@ -51,20 +51,23 @@ export default function ProjectSelectDialog({
             className="fixed inset-0 z-[60] bg-brand-950/55 backdrop-blur-sm"
           />
 
-          <motion.div
-            initial={{ opacity: 0, y: 24, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 16, scale: 0.98 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-            role="dialog"
-            aria-modal="true"
-            className="fixed inset-x-0 bottom-0 z-[70] max-h-[88vh] overflow-y-auto rounded-t-3xl border-t border-white/20 bg-card p-5 shadow-lift
-                       sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[min(560px,calc(100vw-32px))]
-                       sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border"
-          >
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line sm:hidden" />
-
-            <div className="flex items-start justify-between gap-3">
+          {/* Wrapper does the centring; the panel does the animating. Framer sets
+              `transform` on the animated element, which would otherwise cancel
+              Tailwind's -translate-x-1/2 / -translate-y-1/2 and leave the dialog
+              hanging off the bottom-right. */}
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 pointer-events-none">
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+              role="dialog"
+              aria-modal="true"
+              className="pointer-events-auto flex max-h-[85vh] w-full max-w-[620px] flex-col
+                         overflow-hidden rounded-2xl border border-white/20 bg-card shadow-lift"
+            >
+            {/* header — fixed */}
+            <div className="flex items-start justify-between gap-3 border-b border-line/60 px-5 py-4">
               <div>
                 <h2 className="text-base font-semibold text-fg">
                   {stage === 'create' ? 'Create a GCL' : 'Upload a signed GCL'}
@@ -75,22 +78,29 @@ export default function ProjectSelectDialog({
               </div>
               <button
                 onClick={onClose}
-                className="rounded-lg p-1.5 text-fg-subtle transition hover:bg-line/50 hover:text-fg"
+                className="shrink-0 rounded-lg p-1.5 text-fg-subtle transition hover:bg-line/50 hover:text-fg"
                 aria-label="Close"
               >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="mt-4">
+            {/* body — the only part that scrolls */}
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               <ExternalProjectPicker
                 stage={stage}
                 value={selected?.siteId ?? null}
                 onChange={(_siteId, project) => setSelected(project)}
+                fill
               />
             </div>
 
-            <div className="mt-5 flex items-center justify-end gap-2 border-t border-line/60 pt-4">
+            {/* footer — always visible, whatever the list length */}
+            <div className="flex items-center justify-between gap-2 border-t border-line/60 px-5 py-4">
+              <span className="truncate text-xs text-fg-subtle">
+                {selected ? `Selected ${selected.siteId}` : 'Select a project to continue'}
+              </span>
+              <div className="flex gap-2">
               <Button variant="ghost" onClick={onClose}>Cancel</Button>
               <Button
                 variant="gradient"
@@ -98,9 +108,11 @@ export default function ProjectSelectDialog({
                 onClick={() => selected && onConfirm(selected)}
               >
                 Continue <ArrowRight size={15} />
-              </Button>
-            </div>
-          </motion.div>
+                </Button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>

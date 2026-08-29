@@ -15,7 +15,9 @@ import type { MopCategory, ProjectCategory, TemplateInfo } from '../lib/types';
  * Word template.
  */
 export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' | 'mops' }) {
-  const { isAdmin } = useAuth();
+  const { can } = useAuth();
+  const resource = tab === 'projects' ? 'projectCategories' : 'mopCategories';
+  const canEdit = can(resource, 'edit') || can(resource, 'create');
   const [projectCats, setProjectCats] = useState<ProjectCategory[] | null>(null);
   const [mopCats, setMopCats] = useState<MopCategory[]>([]);
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
@@ -71,11 +73,11 @@ export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' 
       </div>
 
       {error && <Alert kind="error">{error}</Alert>}
-      {!isAdmin && <Alert kind="info">Only admins can change categories.</Alert>}
+      {!canEdit && <Alert kind="info">You can view categories but not change them.</Alert>}
 
       {isProjects ? (
         <>
-          {isAdmin && (
+          {canEdit && (
             <Card>
               <CardHead title="Add a project category" icon={<Plus size={15} />} />
               <div className="grid gap-4 px-4 py-5 sm:px-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -133,7 +135,7 @@ export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' 
                 }
                 hint={c.description ?? `${c._count?.projects ?? 0} project(s)`}
                 actions={
-                  isAdmin && (
+                  canEdit && (
                     <div className="flex items-center gap-3">
                       <Checkbox
                         checked={c.isActive}
@@ -158,7 +160,7 @@ export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' 
                 }
               />
 
-              {linkFor === c.id && isAdmin && (
+              {linkFor === c.id && canEdit && (
                 <div className="grid gap-4 border-b border-line/60 bg-card/40 px-5 py-4 md:grid-cols-4">
                   <Field label="MOP category">
                     <Select
@@ -226,7 +228,7 @@ export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' 
                         {t.defaultTcnSummary ?? '—'} · MOP format {t.templateKey}
                       </div>
                     </div>
-                    {isAdmin && (
+                    {canEdit && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -249,7 +251,7 @@ export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' 
         </>
       ) : (
         <>
-          {isAdmin && (
+          {canEdit && (
             <Card>
               <CardHead title="Add a MOP category" icon={<Plus size={15} />} />
               <div className="flex flex-wrap items-end gap-4 px-5 py-5">
@@ -294,7 +296,7 @@ export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' 
                 }
                 hint={`${m._count?.documents ?? 0} document(s) generated`}
                 actions={
-                  isAdmin && (
+                  canEdit && (
                     <div className="flex items-center gap-3">
                       <Checkbox
                         checked={m.isActive}

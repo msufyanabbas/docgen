@@ -4,6 +4,7 @@ import Shell from './components/Shell';
 import { TourProvider } from './components/Tour';
 import { ThemeProvider } from './components/Theme';
 import { AuthProvider, useAuth } from './lib/auth';
+import type { Action, Resource } from './lib/permissions';
 import { Spinner } from './components/ui/Feedback';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -20,8 +21,16 @@ import UsersPage from './pages/UsersPage';
 import AccountPage from './pages/AccountPage';
 
 /** Everything except /login sits behind this. */
-function Protected({ children, adminOnly = false }: { children: ReactNode; adminOnly?: boolean }) {
-  const { user, loading, isAdmin } = useAuth();
+function Protected({
+  children,
+  resource,
+  action = 'view',
+}: {
+  children: ReactNode;
+  resource?: Resource;
+  action?: Action;
+}) {
+  const { user, loading, can } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -34,7 +43,9 @@ function Protected({ children, adminOnly = false }: { children: ReactNode; admin
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
-  if (adminOnly && !isAdmin) {
+  // Landing somewhere they can't see sends them home rather than showing an
+  // empty screen — the API would refuse the request anyway.
+  if (resource && !can(resource, action)) {
     return <Navigate to="/dashboard" replace />;
   }
   return <>{children}</>;
@@ -55,36 +66,36 @@ function AppRoutes() {
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<DashboardPage />} />
 
-                  <Route path="/gcl" element={<GclListPage />} />
-                  <Route path="/gcl/create" element={<CreateGclPage />} />
-                  <Route path="/gcl/upload" element={<UploadPage />} />
+                  <Route path="/gcl" element={<Protected resource="gcl"><GclListPage /></Protected>} />
+                  <Route path="/gcl/create" element={<Protected resource="gcl" action="create"><CreateGclPage /></Protected>} />
+                  <Route path="/gcl/upload" element={<Protected resource="gcl" action="create"><UploadPage /></Protected>} />
                   {/* Old links keep working. */}
                   <Route path="/create-gcl" element={<Navigate to="/gcl" replace />} />
                   <Route path="/upload" element={<Navigate to="/gcl" replace />} />
                   <Route path="/packages" element={<Navigate to="/gcl" replace />} />
 
-                  <Route path="/mop" element={<MopListPage />} />
-                  <Route path="/mop/new" element={<MopNewPage />} />
+                  <Route path="/mop" element={<Protected resource="mop"><MopListPage /></Protected>} />
+                  <Route path="/mop/new" element={<Protected resource="mop" action="create"><MopNewPage /></Protected>} />
 
                   <Route path="/packages/:id" element={<PackageDetailPage />} />
                   <Route
                     path="/upl"
                     element={
-                      <Protected adminOnly>
+                      <Protected resource="priceList">
                         <UplPage />
                       </Protected>
                     }
                   />
 
-                  <Route path="/projects" element={<ProjectsPage />} />
-                  <Route path="/categories/projects" element={<CategoriesPage tab="projects" />} />
-                  <Route path="/categories/mops" element={<CategoriesPage tab="mops" />} />
+                  <Route path="/projects" element={<Protected resource="projects"><ProjectsPage /></Protected>} />
+                  <Route path="/categories/projects" element={<Protected resource="projectCategories"><CategoriesPage tab="projects" /></Protected>} />
+                  <Route path="/categories/mops" element={<Protected resource="mopCategories"><CategoriesPage tab="mops" /></Protected>} />
 
                   <Route path="/account" element={<AccountPage />} />
                   <Route
                     path="/users"
                     element={
-                      <Protected adminOnly>
+                      <Protected resource="users">
                         <UsersPage />
                       </Protected>
                     }

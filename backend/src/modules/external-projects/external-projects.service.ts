@@ -61,9 +61,9 @@ export class ExternalProjectsService {
   private readonly logger = new Logger(ExternalProjectsService.name);
   private cache: CacheEntry | null = null;
 
-  /** Short TTL: fresh enough to reflect upstream edits, long enough that a
-   *  page with several components doesn't hammer a third-party service. */
-  private readonly ttlMs = 60_000;
+  /** Short TTL: the UI polls every 45s, so this mainly stops several components
+   *  on one page from each hitting the third-party service. */
+  private readonly ttlMs = 20_000;
 
   constructor(private readonly config: ConfigService) {}
 

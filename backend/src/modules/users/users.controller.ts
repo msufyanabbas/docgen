@@ -6,6 +6,9 @@ import { CreateUserDto, QueryUsersDto, ResetPasswordDto, UpdateUserDto } from '.
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import {
+  DEFAULT_PM_PERMISSIONS, RESOURCES, RESOURCE_ACTIONS, RESOURCE_LABELS,
+} from '../auth/permissions';
 
 /** User management is Admin-only; the guard is on the controller, so every
  *  route below inherits it. */
@@ -15,6 +18,19 @@ import { CurrentUser } from '../auth/current-user.decorator';
 @Roles(UserRole.ADMIN)
 export class UsersController {
   constructor(private readonly users: UsersService) {}
+
+  /** Resource/action catalogue the permission matrix is drawn from. */
+  @Get('permission-catalog')
+  catalog() {
+    return {
+      resources: RESOURCES.map((key) => ({
+        key,
+        label: RESOURCE_LABELS[key],
+        actions: RESOURCE_ACTIONS[key],
+      })),
+      defaults: DEFAULT_PM_PERMISSIONS,
+    };
+  }
 
   @Get()
   findAll(@Query() q: QueryUsersDto) {

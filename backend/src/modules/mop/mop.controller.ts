@@ -4,6 +4,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
+import { RequirePermission } from '../auth/permissions.guard';
 import { Response } from 'express';
 import { MopService } from './mop.service';
 import { BulkMopDto, CreateMopDto, QueryMopDto } from './mop.dto';
@@ -30,6 +31,7 @@ export class MopController {
     private readonly storage: StorageService,
   ) {}
 
+  @RequirePermission('mop', 'view')
   @Get()
   findAll(@Query() q: QueryMopDto) {
     return this.mop.findAll(q);
@@ -45,11 +47,13 @@ export class MopController {
     return this.mop.findOne(id);
   }
 
+  @RequirePermission('mop', 'create')
   @Post()
   create(@Body() dto: CreateMopDto, @CurrentUser('id') userId: string) {
     return this.mop.create(dto, userId);
   }
 
+  @RequirePermission('mop', 'edit')
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: Partial<CreateMopDto>) {
     return this.mop.update(id, dto);
@@ -60,6 +64,7 @@ export class MopController {
     return this.mop.render(id);
   }
 
+  @RequirePermission('mop', 'delete')
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.mop.remove(id);
@@ -99,6 +104,7 @@ export class MopController {
     return new StreamableFile(buffer);
   }
 
+  @RequirePermission('mop', 'create')
   @Post('bulk')
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))

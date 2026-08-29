@@ -17,6 +17,7 @@ import { ExternalProjectsModule } from './modules/external-projects/external-pro
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { MopModule } from './modules/mop/mop.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
+import { PermissionsGuard } from './modules/auth/permissions.guard';
 import { DocxToPdfService } from './modules/mop/docx-to-pdf.service';
 import { HealthController } from './modules/health/health.controller';
 
@@ -42,6 +43,8 @@ import { HealthController } from './modules/health/health.controller';
   providers: [
     // Authentication is on for the whole platform. Routes opt out with @Public().
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // Runs after authentication; routes opt in with @RequirePermission().
+    { provide: APP_GUARD, useClass: PermissionsGuard },
     // HealthController lives on this module and reports PDF-engine readiness.
     DocxToPdfService,
   ],

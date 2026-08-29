@@ -16,6 +16,31 @@ pulling rows into Node — a year of MOPs is a lot of records to move just to co
 
 ---
 
+## Permissions
+
+Two roles, and a per-user grant on top:
+
+| | |
+|---|---|
+| **Admin** | Everything, implicitly. The stored map is bypassed entirely. |
+| **PM** | Whatever the admin ticks — per resource, per action. |
+
+Resources are Dashboard, GCL documents, MOP documents, Projects, Project categories,
+MOP categories, Price list and Users. Actions are view / create / edit / delete (Dashboard is
+view-only). A new PM starts able to raise GCLs and MOPs and to see projects and categories, but
+not to reshape the platform underneath.
+
+Enforced in three places, because the UI alone is not access control: the sidebar hides what you
+can't view, routes redirect if you navigate there directly, and every endpoint carries a
+`@RequirePermission(...)`. Permissions are re-read from the database on each request, so a change
+takes effect on the next click rather than at token expiry.
+
+Any action implies view, and removing view removes the rest — a grant that lets you edit
+something you can't open is a bug waiting to happen. Submitted maps are sanitised against the
+catalogue, so unknown resources or actions are dropped rather than stored.
+
+---
+
 ## Access control
 
 The whole platform requires sign-in — not just MOP. Two roles:
@@ -93,13 +118,19 @@ Upload GCL  →  closeout.patStatus.status === 'Approved'
 project, the same shape as the MOP library. **Create GCL** and **Upload GCL** open a dialog that
 asks for the project before the form appears.
 
+**Create GCL produces the GCL and nothing else.** The BOQ, Work Order and PAC are generated
+later from the package screen, once the as-built quantities and TAG numbers are known — issuing
+them at creation time would mean issuing commercial documents against design figures.
+
 **Choosing a project is mandatory.** The rest of the screen stays locked until
 one is selected, and the API refuses a GCL without a valid, eligible project — a GCL that can't
 be traced back to a tracker project is worse than no GCL. The stage is re-checked server-side,
 so an approved PAT TCN does not let a signed GCL be uploaded against a project whose PAT is
 still pending.
 
-Responses are cached for 60 seconds with a 12-second timeout. Fields the tracker leaves empty
+The list refreshes itself every 45 seconds while the tab is visible — the tracker is edited by
+another team, so a project can become eligible while the screen is open. Polling pauses on a
+hidden tab. Responses are cached server-side for 20 seconds with a 12-second timeout. Fields the tracker leaves empty
 display as **N/A**. If the service is unreachable the screen says so plainly rather than
 erroring — but no GCL can be raised until it is back, which is the correct outcome.
 

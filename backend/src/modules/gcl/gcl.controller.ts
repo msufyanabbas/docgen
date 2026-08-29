@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
+import { RequirePermission } from '../auth/permissions.guard';
 import { GclService } from './gcl.service';
 import { GclBuilderService } from './gcl-builder.service';
 import { CreateFromGclDto } from '../packages/packages.dto';
@@ -32,6 +33,7 @@ export class GclController {
   }
 
   /** Parse, price against the UPL and persist as a package. */
+  @RequirePermission('gcl', 'create')
   @Post('upload')
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
@@ -55,6 +57,7 @@ export class GclController {
    * Creates a package per site from the scope sheet, ready for GCL_PDF generation.
    * Two file fields: `file` (the scope workbook) and optional `signature` (PNG/JPEG).
    */
+  @RequirePermission('gcl', 'create')
   @Post('scope/create')
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(

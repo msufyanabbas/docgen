@@ -3,6 +3,7 @@ import {
 } from 'react';
 import { api, setAuthToken } from './api';
 import type { AuthUser } from './types';
+import { can as canDo, type Action, type Resource } from './permissions';
 
 const TOKEN_KEY = 'docgen.token.v1';
 
@@ -10,6 +11,8 @@ interface AuthApi {
   user: AuthUser | null;
   loading: boolean;
   isAdmin: boolean;
+  /** True when the signed-in user may do `action` on `resource`. */
+  can: (resource: Resource, action?: Action) => boolean;
   login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => void;
   refresh: () => Promise<void>;
@@ -63,7 +66,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthApi>(
-    () => ({ user, loading, isAdmin: user?.role === 'ADMIN', login, logout, refresh }),
+    () => ({
+      user,
+      loading,
+      isAdmin: user?.role === 'ADMIN',
+      can: (resource, action = 'view') => canDo(user?.role ?? '', user?.permissions, resource, action),
+      login,
+      logout,
+      refresh,
+    }),
     [user, loading, login, logout, refresh],
   );
 

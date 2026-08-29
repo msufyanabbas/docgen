@@ -5,7 +5,7 @@ import {
   Package as PackageIcon, RefreshCw, Save, Upload,
 } from 'lucide-react';
 import { Alert, Spinner } from '../components/ui/Feedback';
-import { Field, Input, Select } from '../components/ui/Field';
+import { Field, Input, Select, Textarea } from '../components/ui/Field';
 import { Button } from '../components/ui/Button';
 import { Card, CardHead } from '../components/ui/Card';
 import { StatusBadge, Badge } from '../components/ui/Badge';
@@ -63,9 +63,13 @@ export default function PackageDetailPage() {
         quantitySource: pkg.quantitySource,
         quantityFieldKey: pkg.quantityFieldKey ?? undefined,
         siteNo: pkg.siteNo,
+        tawalSiteId: pkg.tawalSiteId ?? undefined,
+        projectName: pkg.projectName,
+        mspRepName: pkg.mspRepName ?? undefined,
+        gclDate: pkg.gclDate ?? undefined,
+        notes: pkg.notes ?? undefined,
         region: pkg.region ?? undefined,
         district: pkg.district ?? undefined,
-        projectName: pkg.projectName,
         contractorName: pkg.contractorName,
         poNumber: pkg.poNumber ?? undefined,
         poValue: pkg.poValue ? Number(pkg.poValue) : undefined,
@@ -80,6 +84,7 @@ export default function PackageDetailPage() {
         tawalPmId: pkg.tawalPmId ?? undefined,
         lines: pkg.lines.map((l) => ({
           id: l.id,
+          description: l.description,
           tagNumber: l.tagNumber,
           serialNumber: l.serialNumber ?? undefined,
           designQty: Number(l.designQty),
@@ -223,13 +228,36 @@ export default function PackageDetailPage() {
                    onChange={(e) => patch({ poValue: e.target.value })} />
           </Field>
 
+          <Field label="Site No."><Input value={pkg.siteNo} onChange={(e) => patch({ siteNo: e.target.value })} /></Field>
+          <Field label="Project name"><Input value={pkg.projectName} onChange={(e) => patch({ projectName: e.target.value })} /></Field>
+          <Field label="Tawal Site ID"><Input value={pkg.tawalSiteId ?? ''} onChange={(e) => patch({ tawalSiteId: e.target.value })} /></Field>
+          <Field label="GCL date">
+            <Input type="date" value={dateInput(pkg.gclDate)} onChange={(e) => patch({ gclDate: e.target.value || null })} />
+          </Field>
           <Field label="Contractor PM"><Input value={pkg.contractorPmName ?? ''} onChange={(e) => patch({ contractorPmName: e.target.value })} /></Field>
+          <Field label="MSP representative"><Input value={pkg.mspRepName ?? ''} onChange={(e) => patch({ mspRepName: e.target.value })} /></Field>
           <Field label="Contractor PM ID"><Input value={pkg.contractorPmId ?? ''} onChange={(e) => patch({ contractorPmId: e.target.value })} /></Field>
           <Field label="Tawal PM"><Input value={pkg.tawalPmName ?? ''} onChange={(e) => patch({ tawalPmName: e.target.value })} /></Field>
           <Field label="Tawal PM ID"><Input value={pkg.tawalPmId ?? ''} onChange={(e) => patch({ tawalPmId: e.target.value })} /></Field>
 
           <Field label="Discount"><Input type="number" step="0.01" value={pkg.discount} onChange={(e) => patch({ discount: e.target.value })} /></Field>
           <Field label="FOC"><Input type="number" step="0.01" value={pkg.foc} onChange={(e) => patch({ foc: e.target.value })} /></Field>
+        </div>
+      </div>
+
+      {/* GCL remarks — printed under the instructions block on the document */}
+      <div className="surface">
+        <div className="surface-head">
+          <h2 className="text-sm font-semibold text-fg">GCL remarks</h2>
+          <span className="text-xs text-fg-subtle">Free text, printed on the GCL</span>
+        </div>
+        <div className="px-4 py-5 sm:px-5">
+          <Textarea
+            className="h-24"
+            placeholder={'1/ only one smart lock fixed for Shelter.\n2/ tawal safe clamp lock not fixed.'}
+            value={pkg.notes ?? ''}
+            onChange={(e) => patch({ notes: e.target.value })}
+          />
         </div>
       </div>
 
@@ -259,7 +287,14 @@ export default function PackageDetailPage() {
                 <tr key={l.id} className={l.priceFound ? '' : 'bg-rose-50 dark:bg-rose-500/10'}>
                   <td className="td">{l.no}</td>
                   <td className="td whitespace-nowrap font-mono text-xs font-semibold text-orchid-brand dark:text-orchid-brand">{l.itemCode}</td>
-                  <td className="td max-w-xs truncate text-fg-muted" title={l.description}>{l.description}</td>
+                  <td className="td">
+                    <Input
+                      value={l.description}
+                      onChange={(e) => patchLine(l.id, { description: e.target.value })}
+                      className="!py-1 text-xs"
+                      title={l.description}
+                    />
+                  </td>
                   <td className="td">
                     <input type="number" step="0.01" value={l.designQty}
                            onChange={(e) => patchLine(l.id, { designQty: e.target.value })}

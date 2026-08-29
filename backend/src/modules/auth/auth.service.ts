@@ -5,6 +5,7 @@ import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto, ChangePasswordDto } from './auth.dto';
+import { ALL_PERMISSIONS, PermissionMap } from './permissions';
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -61,7 +62,14 @@ export class AuthService implements OnModuleInit {
     return this.issue(user!);
   }
 
-  private issue(user: { id: string; email: string; name: string; role: UserRole; mustChangePassword: boolean }) {
+  private issue(user: {
+    id: string;
+    email: string;
+    name: string;
+    role: UserRole;
+    mustChangePassword: boolean;
+    permissions?: unknown;
+  }) {
     return {
       accessToken: this.jwt.sign({ sub: user.id, email: user.email, role: user.role }),
       user: {
@@ -70,18 +78,33 @@ export class AuthService implements OnModuleInit {
         name: user.name,
         role: user.role,
         mustChangePassword: user.mustChangePassword,
+        // Admins hold everything; sending the full map keeps the UI logic in
+        // one place rather than special-casing the role in every component.
+        permissions:
+          user.role === UserRole.ADMIN
+            ? ALL_PERMISSIONS
+            : ((user.permissions ?? {}) as PermissionMap),
       },
     };
   }
 
   async me(userId: string) {
-    return this.prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
-        id: true, email: true, name: true, role: true,
+        id: true, email: true, name: true, role: true, permissions: true,
         mustChangePassword: true, lastLoginAt: true, createdAt: true,
       },
     });
+    if (!user) return null;
+
+    return {
+      ...user,
+      permissions:
+        user.role === UserRole.ADMIN
+          ? ALL_PERMISSIONS
+          : ((user.permissions ?? {}) as PermissionMap),
+    };
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto) {

@@ -3,10 +3,11 @@ import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto, QueryUsersDto, ResetPasswordDto, UpdateUserDto } from './users.dto';
+import { ALL_PERMISSIONS, DEFAULT_PM_PERMISSIONS, sanitize } from '../auth/permissions';
 
 const SAFE = {
   id: true, email: true, name: true, role: true, isActive: true,
-  mustChangePassword: true, lastLoginAt: true, createdAt: true,
+  mustChangePassword: true, lastLoginAt: true, createdAt: true, permissions: true,
   createdBy: { select: { id: true, name: true } },
 } as const;
 
@@ -61,6 +62,12 @@ export class UsersService {
         name: dto.name.trim(),
         passwordHash: await bcrypt.hash(dto.password, 12),
         role: dto.role ?? UserRole.PM,
+        // Admins hold everything implicitly; a PM starts on the default grant
+        // unless the form supplied one.
+        permissions:
+          (dto.role ?? UserRole.PM) === UserRole.ADMIN
+            ? ALL_PERMISSIONS
+            : sanitize(dto.permissions ?? DEFAULT_PM_PERMISSIONS),
         createdById: creatorId,
         // The admin knows this password, so the user must replace it.
         mustChangePassword: true,
@@ -88,7 +95,15 @@ export class UsersService {
       if (admins <= 1) throw new BadRequestException('At least one active admin must remain');
     }
 
-    return this.prisma.user.update({ where: { id }, data: dto, select: SAFE });
+    const { permissions, ...rest } = dto;
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(permissions !== undefined ? { permissions: sanitize(permissions) } : {}),
+      },
+      select: SAFE,
+    });
   }
 
   async resetPassword(id: string, dto: ResetPasswordDto) {

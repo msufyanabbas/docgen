@@ -12,7 +12,7 @@ import type { Project, ProjectCategory } from '../lib/types';
 
 /** Projects only. Their categories are managed on their own screen. */
 export default function ProjectsPage() {
-  const { isAdmin } = useAuth();
+  const { can } = useAuth();
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [categories, setCategories] = useState<ProjectCategory[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +58,7 @@ export default function ProjectsPage() {
             A project belongs to a category, and that category decides which MOPs it can produce.
           </p>
         </div>
-        {isAdmin && (
+        {can('projects', 'create') && (
           <Button variant="gradient" onClick={() => setShowNew((v) => !v)}>
             <FolderPlus size={15} /> New project
           </Button>
@@ -66,7 +66,9 @@ export default function ProjectsPage() {
       </div>
 
       {error && <Alert kind="error">{error}</Alert>}
-      {!isAdmin && <Alert kind="info">Only admins can add or change projects.</Alert>}
+      {!can('projects', 'create') && (
+        <Alert kind="info">You can view projects but not change them.</Alert>
+      )}
 
       {categories.length === 0 && (
         <Alert kind="warn" title="No project categories yet">
@@ -76,7 +78,7 @@ export default function ProjectsPage() {
         </Alert>
       )}
 
-      {showNew && isAdmin && categories.length > 0 && (
+      {showNew && can('projects', 'create') && categories.length > 0 && (
         <Card>
           <CardHead title="New project" icon={<Plus size={15} />} />
           <div className="grid gap-4 px-4 py-5 sm:px-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -143,7 +145,10 @@ export default function ProjectsPage() {
 
       {projects.length === 0 && (
         <Empty icon={<FolderKanban size={22} />}>
-          No projects yet. {isAdmin ? 'Create one to start producing MOPs.' : 'An admin can add one.'}
+          No projects yet.{' '}
+          {can('projects', 'create')
+            ? 'Create one to start producing MOPs.'
+            : 'Ask an administrator to add one.'}
         </Empty>
       )}
 
@@ -192,7 +197,7 @@ export default function ProjectsPage() {
                   </td>
                   <td className="td text-right tabular-nums">{p._count?.documents ?? 0}</td>
                   <td className="td">
-                    {isAdmin ? (
+                    {can('projects', 'edit') ? (
                       <Checkbox
                         checked={p.isActive}
                         onChange={(v) => act(() => api.send(`/projects/${p.id}`, 'PATCH', { isActive: v }), p.id)}
@@ -207,7 +212,7 @@ export default function ProjectsPage() {
                       <Link to={`/mop/new?project=${p.id}`}>
                         <Button variant="ghost" size="sm"><Plus size={13} /> MOP</Button>
                       </Link>
-                      {isAdmin && (
+                      {can('projects', 'create') && (
                         <Button
                           variant="ghost"
                           size="sm"

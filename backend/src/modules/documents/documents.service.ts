@@ -9,6 +9,15 @@ import { WoExcelGenerator } from './generators/wo-excel.generator';
 import { fileDataUri, logos, stamp } from './generators/assets';
 import { PackageWithLines } from './documents.types';
 
+/** Appends ".SN: xxx" unless the description already mentions the serial. */
+function withSerial(description: string, serial?: string | null): string {
+  const text = (description ?? '').trim();
+  const sn = (serial ?? '').trim();
+  if (!sn) return text;
+  if (new RegExp(`S\\s*\\.?\\s*N\\s*[:.\\-]?\\s*${sn}`, 'i').test(text)) return text;
+  return text ? `${text} .SN: ${sn}` : `SN: ${sn}`;
+}
+
 const WO_TABLE_ROWS = 14; // Tawal's Work Order grid is a fixed 14-row form
 const PAC_TABLE_ROWS = 14;
 
@@ -61,7 +70,10 @@ export class DocumentsService {
       rows: pkg.lines.map((l) => ({
         no: l.no,
         itemCode: l.itemCode,
-        description: l.description,
+        // Tawal's GCL prints the serial at the end of the description
+        // ("… 19'' Rack SN:Y6640250028"), so append it unless the description
+        // already carries one — parsed GCLs bring it along in the text.
+        description: withSerial(l.description, l.serialNumber),
         unit: l.unit ?? '',
         designQty: Number(l.designQty),
         asBuiltQty: Number(l.asBuiltQty),

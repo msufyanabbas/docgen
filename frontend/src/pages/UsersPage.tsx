@@ -8,6 +8,8 @@ import { Checkbox, Field, Input, Select } from '../components/ui/Field';
 import { api, shortDate } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { AuthUser, Paged, UserRole } from '../lib/types';
+import PermissionMatrix from '../components/PermissionMatrix';
+import { ALL_PERMISSIONS, DEFAULT_PM_PERMISSIONS, type PermissionMap } from '../lib/permissions';
 
 /** Admin-only. The route is gated too — this is the UI half of the same rule. */
 export default function UsersPage() {
@@ -20,8 +22,12 @@ export default function UsersPage() {
   const [showNew, setShowNew] = useState(false);
   const [resetFor, setResetFor] = useState<AuthUser | null>(null);
   const [newPassword, setNewPassword] = useState('');
+  const [permsFor, setPermsFor] = useState<AuthUser | null>(null);
+  const [draftPerms, setDraftPerms] = useState<PermissionMap>({});
 
-  const [draft, setDraft] = useState({ name: '', email: '', password: '', role: 'PM' as UserRole });
+  const [draft, setDraft] = useState<{
+    name: string; email: string; password: string; role: UserRole; permissions: PermissionMap;
+  }>({ name: '', email: '', password: '', role: 'PM', permissions: DEFAULT_PM_PERMISSIONS });
 
   const load = useCallback(() => {
     api
@@ -41,7 +47,7 @@ export default function UsersPage() {
     try {
       await api.send('/users', 'POST', draft);
       setNotice(`${draft.name} can now sign in. They'll be asked to set their own password.`);
-      setDraft({ name: '', email: '', password: '', role: 'PM' });
+      setDraft({ name: '', email: '', password: '', role: 'PM', permissions: DEFAULT_PM_PERMISSIONS });
       setShowNew(false);
       load();
     } catch (e) {
@@ -147,6 +153,16 @@ export default function UsersPage() {
               </Select>
             </Field>
           </div>
+          {draft.role === 'PM' && (
+            <div className="border-t border-line/60 px-4 py-5 sm:px-5">
+              <p className="label">Permissions</p>
+              <PermissionMatrix
+                value={draft.permissions}
+                onChange={(permissions) => setDraft({ ...draft, permissions })}
+              />
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 border-t border-line/60 px-5 py-4">
             <Button variant="ghost" onClick={() => setShowNew(false)}>Cancel</Button>
             <Button
@@ -171,6 +187,41 @@ export default function UsersPage() {
             <Button variant="ghost" onClick={() => setResetFor(null)}>Cancel</Button>
             <Button variant="gradient" onClick={resetPassword} loading={busy === 'reset'} disabled={newPassword.length < 8}>
               Reset
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {permsFor && (
+        <Card>
+          <CardHead
+            title={`Permissions — ${permsFor.name}`}
+            hint={permsFor.role === 'ADMIN'
+              ? 'Admins hold everything; change the role to restrict access.'
+              : 'Tick what this user may do. Any action implies being able to view.'}
+            icon={<ShieldCheck size={15} />}
+          />
+          <div className="px-4 py-5 sm:px-5">
+            <PermissionMatrix
+              value={permsFor.role === 'ADMIN' ? ALL_PERMISSIONS : draftPerms}
+              onChange={setDraftPerms}
+              readOnly={permsFor.role === 'ADMIN'}
+            />
+          </div>
+          <div className="flex justify-end gap-2 border-t border-line/60 px-5 py-4">
+            <Button variant="ghost" onClick={() => setPermsFor(null)}>Cancel</Button>
+            <Button
+              variant="gradient"
+              disabled={permsFor.role === 'ADMIN'}
+              loading={busy === 'perms'}
+              onClick={async () => {
+                setBusy('perms');
+                await patch(permsFor.id, { permissions: draftPerms });
+                setPermsFor(null);
+                setBusy(null);
+              }}
+            >
+              Save permissions
             </Button>
           </div>
         </Card>
@@ -228,6 +279,16 @@ export default function UsersPage() {
                   <td className="td text-xs text-fg-subtle">{shortDate(u.createdAt)}</td>
                   <td className="td">
                     <div className="flex justify-end gap-1.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setPermsFor(u);
+                          setDraftPerms((u.permissions ?? {}) as PermissionMap);
+                        }}
+                      >
+                        <ShieldCheck size={13} /> Permissions
+                      </Button>
                       <Button variant="ghost" size="sm" onClick={() => setResetFor(u)}>
                         <KeyRound size={13} /> Reset
                       </Button>

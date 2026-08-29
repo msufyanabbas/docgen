@@ -1,5 +1,5 @@
 import { AlertTriangle, Building2, Check, RefreshCw, Search } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { cn } from '../lib/cn';
 import { api } from '../lib/api';
 import { Badge } from './ui/Badge';
@@ -23,28 +23,58 @@ export default function ExternalProjectPicker({
   stage,
   value,
   onChange,
+  fill = false,
 }: {
   stage: 'create' | 'upload';
   value: string | null;
   onChange: (siteId: string | null, project: ExternalProject | null) => void;
+  /** Inside a dialog the parent scrolls, so don't add a second scroll box. */
+  fill?: boolean;
 }) {
   const [data, setData] = useState<ExternalProjectsResult | null>(null);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
+  const [syncedAt, setSyncedAt] = useState<Date | null>(null);
 
-  const load = () =>
-    api
-      .get<ExternalProjectsResult>(`/external-projects?stage=${stage}`)
-      .then(setData)
-      .catch((e) =>
-        setData({ available: false, items: [], total: 0, message: e.message, fetchedAt: '' }),
-      );
+  const load = useCallback(
+    (silent = false) =>
+      api
+        .get<ExternalProjectsResult>(`/external-projects?stage=${stage}`)
+        .then((r) => {
+          setData(r);
+          setSyncedAt(new Date());
+        })
+        .catch((e) => {
+          // A failed poll shouldn't blank a list that is already on screen.
+          if (!silent) {
+            setData({ available: false, items: [], total: 0, message: e.message, fetchedAt: '' });
+          }
+        }),
+    [stage],
+  );
 
   useEffect(() => {
     setData(null);
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage]);
+  }, [load]);
+
+  /**
+   * Poll rather than making people press Refresh. The tracker is edited by
+   * another team, so a project can become eligible while this screen is open.
+   * Polling pauses while the tab is hidden so a backgrounded tab isn't hammering
+   * a third-party service.
+   */
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === 'visible') load(true);
+    };
+    const id = setInterval(tick, 45_000);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [load]);
 
   const filtered = useMemo(() => {
     const items = data?.items ?? [];
@@ -71,10 +101,16 @@ export default function ExternalProjectPicker({
               <AlertTriangle size={11} /> Tracker unavailable
             </Badge>
           )}
+          {syncedAt && (
+            <span className="text-[11px] text-fg-subtle">
+              synced {syncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
           <Button
             variant="ghost"
             size="sm"
             loading={busy}
+            title="Refresh now — the list also updates by itself every 45 seconds"
             onClick={async () => {
               setBusy(true);
               await api.send('/external-projects/refresh', 'POST').catch(() => undefined);
@@ -82,7 +118,7 @@ export default function ExternalProjectPicker({
               setBusy(false);
             }}
           >
-            <RefreshCw size={13} /> Refresh
+            <RefreshCw size={13} />
           </Button>
         </div>
       </div>
@@ -121,7 +157,7 @@ export default function ExternalProjectPicker({
                 : 'No projects match that search.'}
             </p>
           ) : (
-            <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+            <div className={fill ? 'space-y-2' : 'max-h-72 space-y-2 overflow-y-auto pr-1'}>
               {filtered.map((p) => {
                 const active = value === p.siteId;
                 return (

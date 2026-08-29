@@ -182,6 +182,7 @@ export interface AuthUser {
   email: string;
   name: string;
   role: UserRole;
+  permissions?: import('./permissions').PermissionMap;
   mustChangePassword: boolean;
   isActive?: boolean;
   lastLoginAt?: string | null;

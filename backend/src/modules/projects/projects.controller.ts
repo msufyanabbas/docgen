@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { RequirePermission } from '../auth/permissions.guard';
 import { UserRole } from '@prisma/client';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto, UpdateProjectDto } from './projects.dto';
@@ -12,30 +13,32 @@ import { RolesGuard } from '../auth/roles.guard';
 export class ProjectsController {
   constructor(private readonly projects: ProjectsService) {}
 
+  @RequirePermission('projects', 'view')
   @Get()
   findAll(@Query('includeInactive') inc?: string) {
     return this.projects.findAll(inc === 'true');
   }
 
+  @RequirePermission('projects', 'view')
   @Get(':idOrSlug')
   findOne(@Param('idOrSlug') idOrSlug: string) {
     return this.projects.findOne(idOrSlug);
   }
 
   @Post()
-  @Roles(UserRole.ADMIN)
+  @RequirePermission('projects', 'create')
   create(@Body() dto: CreateProjectDto) {
     return this.projects.create(dto);
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission('projects', 'edit')
   update(@Param('id') id: string, @Body() dto: UpdateProjectDto) {
     return this.projects.update(id, dto);
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission('projects', 'delete')
   remove(@Param('id') id: string) {
     return this.projects.remove(id);
   }

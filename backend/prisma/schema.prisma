@@ -206,6 +206,11 @@ model User {
   role         UserRole @default(PM)
   isActive     Boolean  @default(true)
   mustChangePassword Boolean @default(true)
+
+  /// Per-resource grants for non-admin accounts, e.g.
+  /// { "projects": { "view": true, "create": true } }.
+  /// Admins bypass this entirely — see src/modules/auth/permissions.ts.
+  permissions Json?
   lastLoginAt  DateTime?
 
   createdById  String?

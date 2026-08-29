@@ -24,14 +24,18 @@ import { cn } from '../lib/cn';
 import { useTour } from './Tour';
 import { Button } from './ui/Button';
 import CoBrand from './CoBrand';
+import ErrorBoundary from './ErrorBoundary';
 import { Aurora, ThemeToggle, useTheme } from './Theme';
+
+import type { Resource } from '../lib/permissions';
 
 interface NavItem {
   to: string;
   label: string;
   icon: typeof FileStack;
   hint: string;
-  adminOnly?: boolean;
+  /** Hidden unless the user can view this resource. */
+  resource: Resource;
   end?: boolean;
 }
 
@@ -52,7 +56,7 @@ const GROUPS: { label: string; tour: string; items: NavItem[] }[] = [
     label: 'Overview',
     tour: 'nav-overview',
     items: [
-      { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, hint: 'Activity at a glance' },
+      { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, hint: 'Activity at a glance', resource: 'dashboard' },
     ],
   },
   {
@@ -61,25 +65,25 @@ const GROUPS: { label: string; tour: string; items: NavItem[] }[] = [
     items: [
       // GCL is the list of packages too — BOQ/WO/PAC belong to a GCL, so
       // splitting them into a separate menu only hid the relationship.
-      { to: '/gcl', label: 'GCL documents', icon: FileSignature, hint: 'BOQ, Work Order, PAC' },
-      { to: '/mop', label: 'MOP documents', icon: ScrollText, hint: 'Method of Procedure', end: true },
+      { to: '/gcl', label: 'GCL documents', icon: FileSignature, hint: 'BOQ, Work Order, PAC', resource: 'gcl' },
+      { to: '/mop', label: 'MOP documents', icon: ScrollText, hint: 'Method of Procedure', end: true, resource: 'mop' },
     ],
   },
   {
     label: 'Projects & Categories',
     tour: 'nav-projects',
     items: [
-      { to: '/projects', label: 'Projects', icon: FolderKanban, hint: 'Add, edit, retire' },
-      { to: '/categories/projects', label: 'Project categories', icon: FolderTree, hint: 'RMS, CCTV, SIM Swap…' },
-      { to: '/categories/mops', label: 'MOP categories', icon: Layers3, hint: 'Survey, Installation, PAT' },
+      { to: '/projects', label: 'Projects', icon: FolderKanban, hint: 'Add, edit, retire', resource: 'projects' },
+      { to: '/categories/projects', label: 'Project categories', icon: FolderTree, hint: 'RMS, CCTV, SIM Swap…', resource: 'projectCategories' },
+      { to: '/categories/mops', label: 'MOP categories', icon: Layers3, hint: 'Survey, Installation, PAT', resource: 'mopCategories' },
     ],
   },
   {
     label: 'Administration',
     tour: 'nav-admin',
     items: [
-      { to: '/upl', label: 'Price list', icon: ListOrdered, hint: 'UPL versions', adminOnly: true },
-      { to: '/users', label: 'Users', icon: UserCog, hint: 'Admins and PMs', adminOnly: true },
+      { to: '/upl', label: 'Price list', icon: ListOrdered, hint: 'UPL versions', resource: 'priceList' },
+      { to: '/users', label: 'Users', icon: UserCog, hint: 'Admins and PMs', resource: 'users' },
     ],
   },
 ];
@@ -89,7 +93,7 @@ export default function Shell({ children }: { children: ReactNode }) {
   const [drawer, setDrawer] = useState(false);
   const { start } = useTour();
   const { resolved } = useTheme();
-  const { user, isAdmin, logout } = useAuth();
+  const { user, can, logout } = useAuth();
   const location = useLocation();
   const nav = useNavigate();
 
@@ -106,12 +110,16 @@ export default function Shell({ children }: { children: ReactNode }) {
 
 
 
-  const visibleGroups = GROUPS.filter((g) => g.items.some((i) => !i.adminOnly || isAdmin));
+  // A group disappears entirely when none of its items are permitted.
+  const visibleGroups = GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((i) => can(i.resource)),
+  })).filter((g) => g.items.length > 0);
 
   /** Same list in the desktop rail and the mobile drawer — one source of truth. */
   const navList = (expanded: boolean) => (
     <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5 no-scrollbar">
-      {GROUPS.filter((g) => g.items.some((i) => !i.adminOnly || isAdmin)).map((group) => (
+      {visibleGroups.map((group) => (
         <div key={group.label} data-tour={group.tour}>
           <AnimatePresence initial={false}>
         {expanded && (
@@ -127,9 +135,7 @@ export default function Shell({ children }: { children: ReactNode }) {
           </AnimatePresence>
 
           <div className="space-y-1">
-        {group.items
-          .filter((item) => !item.adminOnly || isAdmin)
-          .map(({ to, label, icon: Icon, hint, end }) => (
+        {group.items.map(({ to, label, icon: Icon, hint, end }) => (
           <NavLink key={to} to={to} end={end} title={!expanded ? label : undefined}>
             {({ isActive }) => (
               <span
@@ -344,7 +350,7 @@ export default function Shell({ children }: { children: ReactNode }) {
               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
               className="mx-auto max-w-7xl"
             >
-              {children}
+              <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
             </motion.div>
           </AnimatePresence>
         </main>

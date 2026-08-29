@@ -1,12 +1,13 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PackageOrigin, PackageStatus, Prisma, QuantitySource } from '@prisma/client';
+import { DocumentType, PackageOrigin, PackageStatus, Prisma, QuantitySource } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { UplService } from '../upl/upl.service';
 import { ExternalProjectsService } from '../external-projects/external-projects.service';
 import { parseScopeWorkbook, ScopeSite } from './scope.parser';
 import { CreateGclDto, ScopeSiteInputDto } from './gcl.dto';
+import { DocumentsService } from '../documents/documents.service';
 
 const D = (n: number | string) => new Prisma.Decimal(n as any);
 const round2 = (d: Prisma.Decimal) => d.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
@@ -21,6 +22,7 @@ export class GclBuilderService {
     private readonly upl: UplService,
     private readonly config: ConfigService,
     private readonly externalProjects: ExternalProjectsService,
+    private readonly documents: DocumentsService,
   ) {}
 
   /* --------------------------------------------------------------- preview */
@@ -113,9 +115,17 @@ export class GclBuilderService {
 
     const created = [];
     for (const site of selected) {
-      created.push(
-        await this.createOne(site, dto, overrides, signature, parsed.quantityColumns, tracked),
+      const pkg = await this.createOne(
+        site, dto, overrides, signature, parsed.quantityColumns, tracked,
       );
+
+      // Creating a GCL produces the GCL and nothing else — the BOQ, Work Order
+      // and PAC come later, once the as-built quantities and TAG numbers are in.
+      await this.documents
+        .generate(pkg.id, [DocumentType.GCL_PDF])
+        .catch((e) => this.logger.warn(`GCL render failed for ${pkg.woNumber}: ${e.message}`));
+
+      created.push(pkg);
     }
 
     return { packages: created, warnings: parsed.warnings };

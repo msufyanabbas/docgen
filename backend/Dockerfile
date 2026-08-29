@@ -21,8 +21,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libnss3 libatk-bridge2.0-0 libgtk-3-0 libasound2 \
       libreoffice-writer-nogui libreoffice-core-nogui \
       default-jre-headless \
+      fonts-crosextra-carlito fonts-crosextra-caladea \
       openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Pin the substitution for Tawal's brand font so the MOP renders identically
+# here and anywhere else. See docker/fonts-local.conf for why.
+COPY docker/fonts-local.conf /etc/fonts/local.conf
+RUN fc-cache -f >/dev/null
 
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     SOFFICE_PATH=/usr/bin/soffice
