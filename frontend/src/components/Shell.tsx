@@ -341,18 +341,11 @@ export default function Shell({ children }: { children: ReactNode }) {
         </header>
 
         <main className="flex-1 px-4 py-5 sm:px-5 sm:py-7 lg:px-8 lg:py-9">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              className="mx-auto max-w-7xl"
-            >
-              <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
-            </motion.div>
-          </AnimatePresence>
+          {/* Keyed so the fade replays per route, but with no exit animation to
+              wait on — see .page-enter in index.css. */}
+          <div key={location.pathname} className="page-enter mx-auto max-w-7xl">
+            <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
+          </div>
         </main>
 
         <footer className="px-4 pb-6 sm:px-5 lg:px-8">

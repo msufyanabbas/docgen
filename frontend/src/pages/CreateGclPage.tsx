@@ -79,10 +79,12 @@ export default function CreateGclPage() {
       });
 
       const { packages } = await api.uploadForm<{ packages: Package[] }>('/gcl/scope/create', fd);
-      nav(`/packages/${packages[0].id}`);
+      // Navigate last, and leave `busy` set — this component unmounts on the
+      // next line, and clearing state afterwards updates something that is
+      // already gone.
+      nav(`/packages/${packages[0].id}`, { replace: true });
     } catch (e) {
       setError((e as Error).message);
-    } finally {
       setBusy(null);
     }
   }

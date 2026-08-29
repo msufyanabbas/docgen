@@ -329,15 +329,9 @@ export default function SignatureInput({ onChange, initialPreview, label }: Sign
         </div>
 
         {/* pad / preview */}
-        <AnimatePresence mode="wait">
+        <div key={mode} className="page-enter">
           {mode === 'draw' ? (
-            <motion.div
-              key="draw"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="p-3"
-            >
+            <div key="draw" className="p-3">
               <div
                 ref={wrapRef}
                 className="relative h-44 w-full overflow-hidden rounded-xl border border-line bg-white"
@@ -365,15 +359,9 @@ export default function SignatureInput({ onChange, initialPreview, label }: Sign
                 Draw with a finger, stylus or mouse. Exported as a trimmed transparent PNG at 3× so
                 it stays sharp in print.
               </p>
-            </motion.div>
+            </div>
           ) : (
-            <motion.div
-              key="upload"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="p-3"
-            >
+            <div key="upload" className="p-3">
               <input
                 ref={fileInput}
                 type="file"
@@ -411,9 +399,9 @@ export default function SignatureInput({ onChange, initialPreview, label }: Sign
               <p className="mt-2 text-[11px] text-fg-subtle">
                 PNG or JPEG. A transparent PNG sits best over the form.
               </p>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
+        </div>
 
         {/* status */}
         <div className="flex items-center gap-2 border-t border-line/60 px-4 py-2.5 text-[11px]">

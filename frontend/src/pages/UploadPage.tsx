@@ -63,10 +63,10 @@ export default function UploadPage() {
         ...form,
         ...(externalSiteId ? { externalSiteId } : {}),
       });
-      nav(`/packages/${pkg.id}`);
+      // See CreateGclPage: navigate last and don't touch state afterwards.
+      nav(`/packages/${pkg.id}`, { replace: true });
     } catch (e) {
       setError((e as Error).message);
-    } finally {
       setBusy(null);
     }
   }

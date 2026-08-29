@@ -16,6 +16,21 @@ pulling rows into Node — a year of MOPs is a lot of records to move just to co
 
 ---
 
+## A note on page transitions
+
+Page changes use a CSS fade whose resting state is fully visible; the animation
+only fades in. If it never runs, is interrupted, or the browser skips it, the
+content is still on screen.
+
+This replaced a framer-motion `AnimatePresence mode="wait"` wrapper with an exit
+animation. That variant holds the incoming page until the outgoing one finishes
+exiting — and when navigation unmounts a component synchronously, as it does
+after creating a GCL, the exit never completes and the screen stays blank until
+a reload. Anything that gates page content on an animation completing is a
+liability; a cross-fade is not worth that.
+
+---
+
 ## Permissions
 
 Two roles, and a per-user grant on top:

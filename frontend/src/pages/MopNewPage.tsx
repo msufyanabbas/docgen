@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   ArrowLeft, ArrowRight, Download, FileSignature, Rows3, Sheet, Sparkles,
 } from 'lucide-react';
@@ -226,9 +226,11 @@ export default function MopNewPage() {
       </Card>
 
       {/* --- step 2 --- */}
-      <AnimatePresence mode="wait">
+      {/* Plain conditional rendering: an exit animation here could stall and
+          leave the step invisible, which is not worth a cross-fade. */}
+      <div key={mode} className="page-enter">
         {mode === 'single' ? (
-          <motion.div key="single" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <div>
             <Card>
               <CardHead
                 title="2 · Document Control"
@@ -284,9 +286,9 @@ export default function MopNewPage() {
                 </Button>
               </div>
             </Card>
-          </motion.div>
+          </div>
         ) : (
-          <motion.div key="bulk" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <div>
             <Card>
               <CardHead
                 title="2 · Bulk from Excel"
@@ -387,9 +389,9 @@ export default function MopNewPage() {
                 ) : null}
               </Card>
             )}
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }

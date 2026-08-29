@@ -155,20 +155,6 @@ export default function PackageDetailPage() {
           {pkg.siteName && <p className="text-xs text-fg-subtle">{pkg.siteName}</p>}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" className="" onClick={save} disabled={busy !== null || !dirty}>
-            <Save size={15} /> Save &amp; re-price
-          </Button>
-          <Button variant="gradient" onClick={generate} disabled={busy !== null}>
-            {busy === 'generate' ? <Spinner label="Generating…" /> : (<><RefreshCw size={15} /> Generate documents</>)}
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => api.download(`/packages/${id}/bundle`, 'package.zip')}
-          >
-            <PackageIcon size={15} /> Download all (.zip)
-          </Button>
-        </div>
       </div>
 
       {error && <Alert kind="error">{error}</Alert>}
@@ -414,6 +400,54 @@ export default function PackageDetailPage() {
           <p className="mt-1 whitespace-pre-line text-sm text-fg-muted">{pkg.notes}</p>
         </div>
       )}
+      {/*
+        Actions live at the end of the page rather than in the header: they act
+        on everything above them, and the order reads as review, then act. The
+        bar sticks to the bottom of the viewport so they stay reachable on a
+        long package without scrolling back up.
+      */}
+      <div className="sticky bottom-0 -mx-4 mt-2 border-t border-line/60 bg-canvas/85 px-4 py-3 backdrop-blur-md sm:-mx-5 sm:px-5 lg:-mx-8 lg:px-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="hidden min-w-0 flex-1 truncate text-xs text-fg-subtle sm:block">
+            {dirty
+              ? 'Unsaved changes — save and re-price before generating.'
+              : `${pkg.lines.length} line${pkg.lines.length === 1 ? '' : 's'} · ${money(pkg.netAmount, pkg.currency)} net`}
+          </span>
+
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button
+              variant="outline"
+              className="flex-1 sm:flex-none"
+              onClick={save}
+              disabled={busy !== null || !dirty}
+            >
+              <Save size={15} /> Save &amp; re-price
+            </Button>
+            <Button
+              variant="gradient"
+              className="flex-1 sm:flex-none"
+              onClick={generate}
+              disabled={busy !== null}
+            >
+              {busy === 'generate' ? (
+                <Spinner label="Generating…" />
+              ) : (
+                <>
+                  <RefreshCw size={15} /> Generate documents
+                </>
+              )}
+            </Button>
+            <Button
+              variant="primary"
+              className="flex-1 sm:flex-none"
+              onClick={() => api.download(`/packages/${id}/bundle`, 'package.zip')}
+            >
+              <PackageIcon size={15} /> Download all (.zip)
+            </Button>
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }
