@@ -17,7 +17,11 @@ import type { MopCategory, ProjectCategory, TemplateInfo } from '../lib/types';
 export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' | 'mops' }) {
   const { can } = useAuth();
   const resource = tab === 'projects' ? 'projectCategories' : 'mopCategories';
-  const canEdit = can(resource, 'edit') || can(resource, 'create');
+  // One flag per action: a user with edit but not delete should see the edit
+  // controls and no bin icon. A single "canEdit" showed both.
+  const canCreate = can(resource, 'create');
+  const canEdit = can(resource, 'edit');
+  const canDelete = can(resource, 'delete');
   const [projectCats, setProjectCats] = useState<ProjectCategory[] | null>(null);
   const [mopCats, setMopCats] = useState<MopCategory[]>([]);
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
@@ -73,7 +77,9 @@ export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' 
       </div>
 
       {error && <Alert kind="error">{error}</Alert>}
-      {!canEdit && <Alert kind="info">You can view categories but not change them.</Alert>}
+      {!canCreate && !canEdit && !canDelete && (
+        <Alert kind="info">You can view categories but not change them.</Alert>
+      )}
 
       {isProjects ? (
         <>
@@ -204,7 +210,7 @@ export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' 
         </>
       ) : (
         <>
-          {canEdit && (
+          {canCreate && (
             <Card>
               <CardHead title="Add a MOP category" icon={<Plus size={15} />} />
               <div className="flex flex-wrap items-end gap-4 px-5 py-5">
@@ -249,8 +255,9 @@ export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' 
                 }
                 hint={`${m._count?.documents ?? 0} document(s) generated`}
                 actions={
-                  canEdit && (
+                  (canEdit || canDelete) && (
                     <div className="flex items-center gap-3">
+                      {canEdit && (
                       <Checkbox
                         checked={m.isActive}
                         onChange={(v) =>
@@ -258,14 +265,17 @@ export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' 
                         }
                         label={<span className="text-xs">Visible</span>}
                       />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-rose-500"
-                        onClick={() => act(() => api.send(`/categories/mops/${m.id}`, 'DELETE'), m.id)}
-                      >
-                        <Trash2 size={13} />
-                      </Button>
+                      )}
+                      {canDelete && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-rose-500"
+                          onClick={() => act(() => api.send(`/categories/mops/${m.id}`, 'DELETE'), m.id)}
+                        >
+                          <Trash2 size={13} />
+                        </Button>
+                      )}
                     </div>
                   )
                 }

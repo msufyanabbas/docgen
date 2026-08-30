@@ -7,10 +7,12 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input, Select } from '../components/ui/Field';
 import { api, shortDate } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import type { MopCategory, MopDocument, Paged, Project, ProjectsResult } from '../lib/types';
 
 /** Every MOP produced, grouped by project — the library view. */
 export default function MopListPage() {
+  const { can } = useAuth();
   const [params, setParams] = useSearchParams();
   const [docs, setDocs] = useState<MopDocument[] | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -82,11 +84,13 @@ export default function MopListPage() {
           </p>
         </div>
 
-        <Link to="/mop/new">
-          <Button variant="gradient">
-            <Plus size={15} /> New MOP
-          </Button>
-        </Link>
+        {can('mop', 'create') && (
+          <Link to="/mop/new">
+            <Button variant="gradient">
+              <Plus size={15} /> New MOP
+            </Button>
+          </Link>
+        )}
       </div>
 
       {error && <Alert kind="error">{error}</Alert>}

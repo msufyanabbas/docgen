@@ -13,7 +13,10 @@ import { ALL_PERMISSIONS, DEFAULT_PM_PERMISSIONS, type PermissionMap } from '../
 
 /** Admin-only. The route is gated too — this is the UI half of the same rule. */
 export default function UsersPage() {
-  const { user: me } = useAuth();
+  const { user: me, can } = useAuth();
+  const canCreate = can('users', 'create');
+  const canEdit = can('users', 'edit');
+  const canDelete = can('users', 'delete');
   const [data, setData] = useState<Paged<AuthUser> | null>(null);
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -113,16 +116,18 @@ export default function UsersPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <Button variant="gradient" onClick={() => setShowNew((v) => !v)}>
-            <UserPlus size={15} /> Add user
-          </Button>
+          {canCreate && (
+            <Button variant="gradient" onClick={() => setShowNew((v) => !v)}>
+              <UserPlus size={15} /> Add user
+            </Button>
+          )}
         </div>
       </div>
 
       {error && <Alert kind="error">{error}</Alert>}
       {notice && <Alert kind="success">{notice}</Alert>}
 
-      {showNew && (
+      {showNew && canCreate && (
         <Card>
           <CardHead title="New user" hint="They set their own password at first sign-in" icon={<Plus size={15} />} />
           <div className="grid gap-4 px-4 py-5 sm:px-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -258,7 +263,7 @@ export default function UsersPage() {
                   <td className="td">
                     <Select
                       value={u.role}
-                      disabled={u.id === me?.id}
+                      disabled={u.id === me?.id || !canEdit}
                       onChange={(e) => patch(u.id, { role: e.target.value })}
                       className="!py-1.5 text-xs"
                     >
@@ -279,28 +284,34 @@ export default function UsersPage() {
                   <td className="td text-xs text-fg-subtle">{shortDate(u.createdAt)}</td>
                   <td className="td">
                     <div className="flex justify-end gap-1.5">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setPermsFor(u);
-                          setDraftPerms((u.permissions ?? {}) as PermissionMap);
-                        }}
-                      >
-                        <ShieldCheck size={13} /> Permissions
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setResetFor(u)}>
-                        <KeyRound size={13} /> Reset
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={u.id === me?.id}
-                        onClick={() => remove(u)}
-                        className="text-rose-500"
-                      >
-                        <Trash2 size={13} />
-                      </Button>
+                      {canEdit && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setPermsFor(u);
+                            setDraftPerms((u.permissions ?? {}) as PermissionMap);
+                          }}
+                        >
+                          <ShieldCheck size={13} /> Permissions
+                        </Button>
+                      )}
+                      {canEdit && (
+                        <Button variant="ghost" size="sm" onClick={() => setResetFor(u)}>
+                          <KeyRound size={13} /> Reset
+                        </Button>
+                      )}
+                      {canDelete && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={u.id === me?.id}
+                          onClick={() => remove(u)}
+                          className="text-rose-500"
+                        >
+                          <Trash2 size={13} />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>

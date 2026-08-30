@@ -10,6 +10,7 @@ import { Button } from '../components/ui/Button';
 import { Card, CardHead } from '../components/ui/Card';
 import { StatusBadge, Badge } from '../components/ui/Badge';
 import { api, dateInput, money, shortDate } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import Pipeline from '../components/Pipeline';
 import SignatureInput from '../components/SignatureInput';
 import type { DocumentType, Package, QuantitySource } from '../lib/types';
@@ -24,6 +25,8 @@ const DOCS: { type: DocumentType; label: string; icon: typeof FileText }[] = [
 ];
 
 export default function PackageDetailPage() {
+  const { can } = useAuth();
+  const canEdit = can('gcl', 'edit');
   const { id = '' } = useParams();
   const [pkg, setPkg] = useState<Package | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -415,6 +418,7 @@ export default function PackageDetailPage() {
           </span>
 
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            {canEdit && (
             <Button
               variant="outline"
               className="flex-1 sm:flex-none"
@@ -423,6 +427,8 @@ export default function PackageDetailPage() {
             >
               <Save size={15} /> Save &amp; re-price
             </Button>
+            )}
+            {canEdit && (
             <Button
               variant="gradient"
               className="flex-1 sm:flex-none"
@@ -437,6 +443,7 @@ export default function PackageDetailPage() {
                 </>
               )}
             </Button>
+            )}
             <Button
               variant="primary"
               className="flex-1 sm:flex-none"

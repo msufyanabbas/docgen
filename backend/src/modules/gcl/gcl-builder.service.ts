@@ -156,14 +156,36 @@ export class GclBuilderService {
     overrides: Map<string, ScopeSiteInputDto>,
     signature?: { fileName: string; filePath: string },
     parsedColumns: { key: string; label: string }[] = [],
-    tracked?: { id: string; siteId: string; title: string; category: string | null } | null,
+    tracked?: {
+      id: string;
+      siteId: string;
+      title: string;
+      category: string | null;
+      woNumber?: string | null;
+    } | null,
   ) {
     const defaults = this.config.get('defaults');
     const key = site.siteCode ?? site.tawalSiteId ?? '';
     const o = overrides.get(key);
 
     const siteNo = o?.siteNo ?? site.siteCode ?? site.tawalSiteId ?? 'UNKNOWN';
-    const woNumber = o?.woNumber ?? this.buildWoNumber(siteNo, site.poNumber, dto.woSequence);
+    /*
+     * The Work Order number belongs to the project, not to us. The tracker
+     * issues it (mapping.woIssuance.woNumber) and Tawal references that number
+     * on every downstream document — inventing one would mean the GCL and the
+     * tracker disagree about the same job. A generated number is only a
+     * fallback for the rare case where the WO is issued without one recorded.
+     */
+    const woNumber =
+      o?.woNumber ??
+      tracked?.woNumber ??
+      this.buildWoNumber(siteNo, site.poNumber, dto.woSequence);
+
+    if (!o?.woNumber && !tracked?.woNumber) {
+      this.logger.warn(
+        `${siteNo}: the tracker has no WO number for this project — falling back to a generated one.`,
+      );
+    }
 
     const existing = await this.prisma.package.findUnique({ where: { woNumber } });
     if (existing) {

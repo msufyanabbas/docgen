@@ -54,6 +54,8 @@ export interface ExternalProjectsResult {
   available: boolean;
   items: ExternalProject[];
   total: number;
+  /** Left out because the tracker has no site ID for them. */
+  skippedWithoutSiteId?: number;
   /** Present when the upstream call failed — shown as a hint, not an error. */
   message?: string;
   fetchedAt: string;
@@ -64,6 +66,16 @@ export interface ExternalProjectsResult {
  * request is still sitting at "Requested", and a scope file is attached — all
  * three, because without the attachment there is nothing to build from.
  */
+/**
+ * A site ID identifies the job on every document Tawal receives, so a project
+ * without one cannot produce a usable GCL. Such projects are filtered out of
+ * the list rather than surfaced and then rejected — being offered a choice that
+ * fails on the next screen is worse than not being offered it.
+ */
+function hasSiteId(row: any): boolean {
+  return Boolean(String(row?.siteId ?? '').trim());
+}
+
 function readyForGcl(mapping: any): boolean {
   const issuance = String(mapping?.woIssuance?.status ?? '').toLowerCase();
   const request = String(mapping?.woRequest?.status ?? '').toLowerCase();
@@ -190,7 +202,13 @@ export class ExternalProjectsService {
     }
 
     const rows: any[] = Array.isArray(payload?.data) ? payload.data : [];
-    let items = rows.map((r) => this.map(r));
+    const withSiteId = rows.filter(hasSiteId);
+    const skipped = rows.length - withSiteId.length;
+    if (skipped) {
+      this.logger.warn(`${skipped} tracker project(s) have no site ID and were left out.`);
+    }
+
+    let items = withSiteId.map((r) => this.map(r));
 
     if (stage === 'create') {
       items = items.filter((p) => p.readyForGcl);
@@ -204,6 +222,8 @@ export class ExternalProjectsService {
       available: true,
       items,
       total: Number(payload?.meta?.total ?? rows.length),
+      /** Projects the tracker returned but which have no site ID. */
+      skippedWithoutSiteId: skipped,
       fetchedAt,
     };
   }

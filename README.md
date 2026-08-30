@@ -45,7 +45,9 @@ MOP categories, Price list and Users. Actions are view / create / edit / delete 
 view-only). A new PM starts able to raise GCLs and MOPs and to see projects and categories, but
 not to reshape the platform underneath.
 
-Enforced in three places, because the UI alone is not access control: the sidebar hides what you
+Every control is gated on the action it performs, not on a general "can change" flag — someone
+with edit but not delete sees the edit controls and no bin icon. Enforced in three places,
+because the UI alone is not access control: the sidebar hides what you
 can't view, routes redirect if you navigate there directly, and every endpoint carries a
 `@RequirePermission(...)`. Permissions are re-read from the database on each request, so a change
 takes effect on the next click rather than at token expiry.
@@ -131,6 +133,15 @@ Create GCL       →  mapping.woIssuance.status === 'Approved'
                  &&  mapping.woRequest.status  === 'Requested'
                  &&  mapping.woRequest.fileUrl is present
 ```
+
+The **Work Order number comes from the project**, not from us — the tracker issues it and Tawal
+references it on every downstream document, so generating one would mean the GCL and the tracker
+disagree about the same job. A generated number is only a fallback for a WO issued with none
+recorded.
+
+Projects **without a site ID are left out** of the list entirely. The site ID identifies the job
+on everything Tawal receives, so being offered a project that fails on the next screen is worse
+than not being offered it.
 
 **Create GCL is the only GCL entry point.** The scope workbook attached to the WO request is
 downloaded, parsed and previewed automatically — there is no upload step, because the file

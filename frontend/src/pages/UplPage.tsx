@@ -6,9 +6,14 @@ import { Card, CardHead } from '../components/ui/Card';
 import { Field, Input } from '../components/ui/Field';
 import { Badge } from '../components/ui/Badge';
 import { api, money } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import type { Paged, UplItem } from '../lib/types';
 
 export default function UplPage() {
+  const { can } = useAuth();
+  const canCreate = can('priceList', 'create');
+  // Individual rows aren't editable here yet; when they are, gate them on
+  // can('priceList', 'edit') / can('priceList', 'delete').
   const [data, setData] = useState<Paged<UplItem> | null>(null);
   const [versions, setVersions] = useState<{ version: string; items: number }[]>([]);
   const [version, setVersion] = useState('v1');
@@ -61,6 +66,9 @@ export default function UplPage() {
         </p>
       </div>
 
+      {/* Importing replaces prices, so it needs create — a view-only user sees
+          the versions list and the table, and nothing that writes. */}
+      {canCreate && (
       <div className="grid gap-4 md:grid-cols-[1fr_320px]">
         <FileDrop
           accept=".xlsx,.xls"
@@ -85,6 +93,21 @@ export default function UplPage() {
           </div>
         </div>
       </div>
+      )}
+
+      {!canCreate && versions.length > 0 && (
+        <div className="surface px-5 py-4">
+          <p className="label">Versions</p>
+          <div className="mt-1 text-xs text-fg-muted">
+            {versions.map((v) => (
+              <div key={v.version} className="flex justify-between border-b border-line/50 py-1 last:border-0">
+                <span className="font-medium text-fg-muted">{v.version}</span>
+                <span>{v.items} items</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {busy && <Spinner label="Importing…" />}
       {error && <Alert kind="error">{error}</Alert>}

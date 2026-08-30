@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Field';
 import { api, money, shortDate } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import type { ExternalProject, Package, Paged } from '../lib/types';
 
 const na = (v: string | null | undefined) => (v && v.trim() ? v : 'N/A');
@@ -21,6 +22,7 @@ const na = (v: string | null | undefined) => (v && v.trim() ? v : 'N/A');
  */
 export default function GclListPage() {
   const nav = useNavigate();
+  const { can } = useAuth();
   const [packages, setPackages] = useState<Package[] | null>(null);
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -72,11 +74,13 @@ export default function GclListPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2" data-tour="gcl-actions">
-          <Button variant="gradient" onClick={() => setDialog('create')}>
-            <FileSignature size={15} /> Create GCL
-          </Button>
-        </div>
+        {can('gcl', 'create') && (
+          <div className="flex flex-wrap gap-2" data-tour="gcl-actions">
+            <Button variant="gradient" onClick={() => setDialog('create')}>
+              <FileSignature size={15} /> Create GCL
+            </Button>
+          </div>
+        )}
       </div>
 
       {error && <Alert kind="error">{error}</Alert>}
