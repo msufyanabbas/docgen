@@ -143,7 +143,10 @@ Projects **without a site ID are left out** of the list entirely. The site ID id
 on everything Tawal receives, so being offered a project that fails on the next screen is worse
 than not being offered it.
 
-**Create GCL is the only GCL entry point.** The scope workbook attached to the WO request is
+**Two ways in.** *Create GCL* builds from the scope workbook attached to the WO request — no
+upload, because the file already exists upstream. *Upload GCL* reads one already signed on site,
+and its list is projects with an approved **PAT**, since a signed GCL only exists once the work
+has been accepted. The scope workbook attached to the WO request is
 downloaded, parsed and previewed automatically — there is no upload step, because the file
 already exists upstream.
 

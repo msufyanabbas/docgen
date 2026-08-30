@@ -10,6 +10,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import GclListPage from './pages/GclListPage';
 import CreateGclPage from './pages/CreateGclPage';
+import UploadPage from './pages/UploadPage';
 import PackageDetailPage from './pages/PackageDetailPage';
 import UplPage from './pages/UplPage';
 import ProjectsPage from './pages/ProjectsPage';
@@ -70,7 +71,7 @@ function AppRoutes() {
                   {/* Old links keep working. */}
                   <Route path="/create-gcl" element={<Navigate to="/gcl" replace />} />
                   <Route path="/upload" element={<Navigate to="/gcl" replace />} />
-                  <Route path="/gcl/upload" element={<Navigate to="/gcl" replace />} />
+                  <Route path="/gcl/upload" element={<Protected resource="gcl" action="create"><UploadPage /></Protected>} />
                   <Route path="/packages" element={<Navigate to="/gcl" replace />} />
 
                   <Route path="/mop" element={<Protected resource="mop"><MopListPage /></Protected>} />

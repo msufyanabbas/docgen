@@ -33,7 +33,7 @@ export interface TourStep {
 }
 
 // Bumped when the tour changes, so returning users see the new walkthrough once.
-const STORAGE_KEY = 'docgen.tour.completed.v7';
+const STORAGE_KEY = 'docgen.tour.completed.v8';
 
 const STEPS: TourStep[] = [
   {
@@ -77,8 +77,10 @@ const STEPS: TourStep[] = [
     body: (
       <>
         Every GCL and its BOQ, Work Order and PAC, grouped by project.{' '}
-        <b>Create GCL</b> lists the projects that are ready — Work Order issued, request still
-        open, scope sheet attached — and builds from that attachment. No upload needed.
+        <b>Create GCL</b> lists projects that are ready — Work Order issued, request still open,
+        scope sheet attached — and builds from that attachment, with no upload.{' '}
+        <b>Upload GCL</b> is the other way in, for one already signed on site; that list is
+        projects with an approved <b>PAT</b>.
       </>
     ),
     target: 'gcl-actions',

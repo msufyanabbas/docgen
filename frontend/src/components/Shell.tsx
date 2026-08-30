@@ -366,7 +366,7 @@ export default function Shell({ children }: { children: ReactNode }) {
 const TITLES: Record<string, [string, string]> = {
   '/dashboard': ['Dashboard', 'Activity across MOPs, packages and projects'],
   '/gcl': ['GCL documents', 'Handing Over GCLs and the documents built from them'],
-  '/gcl/create': ['Create a GCL', 'From an approved scope of work'],
+  '/gcl/create': ['Create a GCL', "From the scope sheet on the project's WO request"],
   '/gcl/upload': ['Upload a GCL', 'Read a signed GCL and price it'],
   '/mop': ['MOP documents', 'Method of Procedure, grouped by project'],
   '/mop/new': ['New MOP', 'One site, or many from a spreadsheet'],

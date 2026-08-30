@@ -25,7 +25,7 @@ export default function ExternalProjectPicker({
   onChange,
   fill = false,
 }: {
-  stage: 'create';
+  stage: 'create' | 'upload';
   value: string | null;
   onChange: (siteId: string | null, project: ExternalProject | null) => void;
   /** Inside a dialog the parent scrolls, so don't add a second scroll box. */
@@ -151,7 +151,9 @@ export default function ExternalProjectPicker({
           {filtered.length === 0 ? (
             <p className="rounded-xl border border-line bg-card/50 px-4 py-6 text-center text-sm text-fg-subtle">
               {data.items.length === 0
-                ? 'No projects are ready for a GCL — that needs an issued WO, an open WO request, and a scope sheet attached to it.'
+                ? stage === 'create'
+                  ? 'No projects are ready for a GCL — that needs an issued WO, an open WO request, and a scope sheet attached to it.'
+                  : 'No projects with an approved PAT.'
                 : 'No projects match that search.'}
             </p>
           ) : (
@@ -187,7 +189,7 @@ export default function ExternalProjectPicker({
                       <span>Lead {na(p.teamLead)}</span>
                     </div>
 
-                    {p.scopeFileName && (
+                    {stage === 'create' && p.scopeFileName && (
                       <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-cyan-brand">
                         <Paperclip size={11} />
                         <span className="truncate">{p.scopeFileName}</span>
@@ -200,7 +202,9 @@ export default function ExternalProjectPicker({
           )}
 
           <p className="mt-2 text-[11px] text-fg-subtle">
-            WO issued, request still open, scope sheet attached.{' '}
+            {stage === 'create'
+              ? 'WO issued, request still open, scope sheet attached.'
+              : 'Projects whose PAT is approved.'}{' '}
             {filtered.length} of {data.items.length} shown.
           </p>
         </>
