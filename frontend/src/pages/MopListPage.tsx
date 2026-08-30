@@ -7,7 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input, Select } from '../components/ui/Field';
 import { api, shortDate } from '../lib/api';
-import type { MopCategory, MopDocument, Paged, Project } from '../lib/types';
+import type { MopCategory, MopDocument, Paged, Project, ProjectsResult } from '../lib/types';
 
 /** Every MOP produced, grouped by project — the library view. */
 export default function MopListPage() {
@@ -24,7 +24,7 @@ export default function MopListPage() {
 
   const load = useCallback(() => {
     const q = new URLSearchParams({ limit: '200' });
-    if (projectId) q.set('projectId', projectId);
+    if (projectId) q.set('externalSiteId', projectId);
     if (mopCategoryId) q.set('mopCategoryId', mopCategoryId);
     if (search) q.set('search', search);
 
@@ -40,15 +40,25 @@ export default function MopListPage() {
   }, [load]);
 
   useEffect(() => {
-    api.get<Project[]>('/projects').then(setProjects).catch(() => setProjects([]));
+    api
+      .get<ProjectsResult>('/projects')
+      .then((r) => setProjects(r.items))
+      .catch(() => setProjects([]));
     api.get<MopCategory[]>('/categories/mops').then(setCategories).catch(() => setCategories([]));
   }, []);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, { project: MopDocument['project']; items: MopDocument[] }>();
+    const map = new Map<string, { title: string; siteId: string; colour: string; items: MopDocument[] }>();
     for (const d of docs ?? []) {
-      const key = d.project?.id ?? 'unknown';
-      if (!map.has(key)) map.set(key, { project: d.project, items: [] });
+      const key = d.externalSiteId || 'unknown';
+      if (!map.has(key)) {
+        map.set(key, {
+          siteId: key,
+          title: d.externalProjectTitle || d.externalCategory || '',
+          colour: d.projectCategory?.colour ?? '#44489D',
+          items: [],
+        });
+      }
       map.get(key)!.items.push(d);
     }
     return [...map.entries()].sort((a, b) => b[1].items.length - a[1].items.length);
@@ -99,7 +109,9 @@ export default function MopListPage() {
             <Select value={projectId} onChange={(e) => setParam('project', e.target.value)}>
               <option value="">All projects</option>
               {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+                <option key={p.siteId} value={p.siteId}>
+                  {p.siteId} — {p.title}
+                </option>
               ))}
             </Select>
           </div>
@@ -133,15 +145,13 @@ export default function MopListPage() {
             >
               <span
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ background: group.project?.projectCategory?.colour ?? '#44489D' }}
+                style={{ background: group.colour }}
               />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-fg">
-                  {group.project?.name ?? 'Unassigned'}
+                <span className="block truncate font-mono text-sm font-semibold text-fg">
+                  {group.siteId}
                 </span>
-                <span className="block text-[11px] text-fg-subtle">
-                  {group.project?.projectCategory?.name}
-                </span>
+                <span className="block truncate text-[11px] text-fg-subtle">{group.title}</span>
               </span>
               <Badge tone="neutral">{group.items.length}</Badge>
               <ChevronDown

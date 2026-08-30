@@ -33,7 +33,7 @@ export interface TourStep {
 }
 
 // Bumped when the tour changes, so returning users see the new walkthrough once.
-const STORAGE_KEY = 'docgen.tour.completed.v6';
+const STORAGE_KEY = 'docgen.tour.completed.v7';
 
 const STEPS: TourStep[] = [
   {
@@ -77,8 +77,8 @@ const STEPS: TourStep[] = [
     body: (
       <>
         Every GCL and its BOQ, Work Order and PAC, grouped by project.{' '}
-        <b>Create GCL</b> and <b>Upload GCL</b> ask which project first — from the Tawal
-        tracker, filtered by approved <b>PAT TCN</b> and <b>PAT</b> respectively.
+        <b>Create GCL</b> lists the projects that are ready — Work Order issued, request still
+        open, scope sheet attached — and builds from that attachment. No upload needed.
       </>
     ),
     target: 'gcl-actions',
@@ -117,9 +117,9 @@ const STEPS: TourStep[] = [
     title: 'Projects and categories',
     body: (
       <>
-        A <b>project</b> belongs to a <b>project category</b> (RMS, CCTV, SIM Swap…), and that
-        category is paired with <b>MOP categories</b> (Survey, Installation, PAT) to decide
-        which format each produces. Add and remove all of it here.
+        Projects and their categories come from the Tawal tracker. What you set up here is the
+        pairing: each project category to the <b>MOP categories</b> (Survey, Installation, PAT)
+        its projects should produce, and which Word format each pairing uses.
       </>
     ),
     target: 'nav-projects',

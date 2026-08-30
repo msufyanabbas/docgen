@@ -1,4 +1,4 @@
-import { ChevronDown, Building2, FileSignature, FileUp, Search } from 'lucide-react';
+import { Building2, ChevronDown, FileSignature, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ProjectSelectDialog from '../components/ProjectSelectDialog';
@@ -25,7 +25,7 @@ export default function GclListPage() {
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [dialog, setDialog] = useState<'create' | 'upload' | null>(null);
+  const [dialog, setDialog] = useState<'create' | null>(null);
 
   const load = useCallback(() => {
     const q = new URLSearchParams({ limit: '200' });
@@ -58,9 +58,8 @@ export default function GclListPage() {
   }, [packages]);
 
   function start(project: ExternalProject) {
-    const stage = dialog;
     setDialog(null);
-    nav(`/gcl/${stage}?project=${encodeURIComponent(project.siteId)}`);
+    nav(`/gcl/create?project=${encodeURIComponent(project.siteId)}`);
   }
 
   return (
@@ -74,9 +73,6 @@ export default function GclListPage() {
         </div>
 
         <div className="flex flex-wrap gap-2" data-tour="gcl-actions">
-          <Button variant="outline" onClick={() => setDialog('upload')}>
-            <FileUp size={15} /> Upload GCL
-          </Button>
           <Button variant="gradient" onClick={() => setDialog('create')}>
             <FileSignature size={15} /> Create GCL
           </Button>
@@ -99,8 +95,8 @@ export default function GclListPage() {
 
       {packages && packages.length === 0 && (
         <Empty icon={<FileSignature size={22} />}>
-          No GCLs yet. Use <b>Create GCL</b> to build one from a scope sheet, or{' '}
-          <b>Upload GCL</b> if you already have a signed one.
+          No GCLs yet. <b>Create GCL</b> builds one from the scope sheet the tracker already
+          holds against a project's WO request.
         </Empty>
       )}
 

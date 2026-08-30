@@ -200,8 +200,9 @@ export interface ProjectCategory {
   colour: string | null;
   isActive: boolean;
   sortOrder: number;
+  lastSeenAt?: string | null;
   templates?: CategoryTemplate[];
-  _count?: { projects: number };
+  _count?: { documents: number };
 }
 
 export interface MopCategory {
@@ -224,16 +225,17 @@ export interface CategoryTemplate {
   projectCategory?: ProjectCategory;
 }
 
-export interface Project {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  isActive: boolean;
-  sortOrder: number;
-  projectCategoryId: string;
-  projectCategory?: ProjectCategory;
-  _count?: { documents: number };
+/** A tracker project, joined to its local category and MOP count. */
+export interface Project extends ExternalProject {
+  projectCategory: ProjectCategory | null;
+  mopCount: number;
+}
+
+export interface ProjectsResult {
+  available: boolean;
+  message?: string;
+  fetchedAt: string;
+  items: Project[];
 }
 
 export interface TemplateInfo {
@@ -246,7 +248,11 @@ export type SiteImpact = 'NO' | 'YES';
 
 export interface MopDocument {
   id: string;
-  projectId: string;
+  externalProjectId: string | null;
+  externalSiteId: string;
+  externalProjectTitle: string | null;
+  externalCategory: string | null;
+  projectCategoryId: string | null;
   mopCategoryId: string;
   templateKey?: string | null;
   tcnSummary: string;
@@ -259,12 +265,7 @@ export interface MopDocument {
   pdfFileName: string | null;
   batchId: string | null;
   createdAt: string;
-  project?: {
-    id: string;
-    name: string;
-    slug: string;
-    projectCategory?: { id: string; name: string; colour: string | null };
-  };
+  projectCategory?: { id: string; name: string; colour: string | null } | null;
   mopCategory?: { id: string; name: string; slug?: string };
   createdBy?: { id: string; name: string } | null;
 }
@@ -332,6 +333,11 @@ export interface ExternalProject {
   patStatus: string | null;
   woNumber: string | null;
   tcnNumber: string | null;
+  woRequestStatus: string | null;
+  woIssuanceStatus: string | null;
+  scopeFileUrl: string | null;
+  scopeFileName: string | null;
+  readyForGcl: boolean;
 }
 
 export interface ExternalProjectsResult {

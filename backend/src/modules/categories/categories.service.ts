@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { listTemplates } from '../mop/mop.templates';
+import { ExternalProjectsService } from '../external-projects/external-projects.service';
 import { UpsertMopCategoryDto, UpsertProjectCategoryDto, UpsertTemplateLinkDto } from './categories.dto';
 
 const slugify = (v: string) =>
@@ -11,12 +12,8 @@ const slugify = (v: string) =>
  * categories and their template pairings are, so the first MOP can be made
  * without configuring anything. All of it is editable afterwards.
  */
-const SEED_PROJECT_CATEGORIES = [
-  { name: 'RMS', description: 'Remote Monitoring System', colour: '#01C2F3', sortOrder: 1 },
-  { name: 'CCTV', description: 'Camera installation and acceptance', colour: '#C36BA9', sortOrder: 2 },
-  { name: 'SIM Swap', description: 'Replacing SIMs in deployed RMS units', colour: '#F59042', sortOrder: 3 },
-  { name: 'Smart Locks', description: 'Smart lock installation and acceptance', colour: '#44489D', sortOrder: 4 },
-];
+/** Colours handed out to tracker categories as they appear. */
+const PALETTE = ['#01C2F3', '#C36BA9', '#F59042', '#44489D', '#1D174C', '#2BB673'];
 
 const SEED_MOP_CATEGORIES = [
   { name: 'Survey', sortOrder: 0 },
@@ -24,37 +21,20 @@ const SEED_MOP_CATEGORIES = [
   { name: 'PAT', sortOrder: 2 },
 ];
 
-/** [project category, MOP category, template, default summary] */
-const SEED_LINKS: [string, string, string, string][] = [
-  ['RMS', 'Survey', 'Site_Survey', 'Site Survey'],
-  ['RMS', 'Installation', 'INSTALLATION', 'Smart Tower Implementation'],
-  ['RMS', 'PAT', 'INSTALLATION', 'Smart Tower PAT'],
-  ['CCTV', 'Survey', 'Site_Survey', 'CCTV Site Survey'],
-  ['CCTV', 'Installation', 'CCTV_Installation', 'CCTV Implementation'],
-  ['CCTV', 'PAT', 'CCTV_Installation', 'CCTV PAT'],
-  // SIM Swap has no installation or acceptance stage — one pairing only.
-  ['SIM Swap', 'Survey', 'SIM_SWAP', 'Smart Tower SIM SWAP'],
-  ['Smart Locks', 'Survey', 'Site_Survey', 'Smart Lock Site Survey'],
-  ['Smart Locks', 'Installation', 'INSTALLATION', 'Smart Lock Implementation'],
-  ['Smart Locks', 'PAT', 'INSTALLATION', 'Smart Lock PAT'],
-];
 
 @Injectable()
 export class CategoriesService implements OnModuleInit {
   private readonly logger = new Logger(CategoriesService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly externalProjects: ExternalProjectsService,
+  ) {}
 
   async onModuleInit() {
-    if (await this.prisma.projectCategory.count()) return;
-
-    const projectCats = new Map<string, string>();
-    for (const c of SEED_PROJECT_CATEGORIES) {
-      const created = await this.prisma.projectCategory.create({
-        data: { ...c, slug: slugify(c.name) },
-      });
-      projectCats.set(c.name, created.id);
-    }
+    // Only the MOP categories are seeded. Project categories come from the
+    // tracker, so seeding them would invent kinds of project nobody uses.
+    if (await this.prisma.mopCategory.count()) return;
 
     const mopCats = new Map<string, string>();
     for (const c of SEED_MOP_CATEGORIES) {
@@ -64,66 +44,88 @@ export class CategoriesService implements OnModuleInit {
       mopCats.set(c.name, created.id);
     }
 
-    for (const [pc, mc, templateKey, defaultTcnSummary] of SEED_LINKS) {
-      await this.prisma.categoryTemplate.create({
-        data: {
-          projectCategoryId: projectCats.get(pc)!,
-          mopCategoryId: mopCats.get(mc)!,
-          templateKey,
-          defaultTcnSummary,
-        },
-      });
-    }
+    this.logger.log(`Seeded ${SEED_MOP_CATEGORIES.length} MOP categories`);
+  }
 
-    this.logger.log(
-      `Seeded ${SEED_PROJECT_CATEGORIES.length} project categories, ` +
-        `${SEED_MOP_CATEGORIES.length} MOP categories, ${SEED_LINKS.length} pairings`,
+  /**
+   * Mirrors the distinct `category` values the tracker is currently using.
+   *
+   * Called before every read, so a category that appears upstream is usable
+   * immediately — without it, projects in a new category could not produce any
+   * MOP and the reason would not be obvious. Categories are never deleted: MOPs
+   * already generated under one still reference it.
+   */
+  async syncFromTracker() {
+    const { available, items } = await this.externalProjects.list();
+    if (!available) return;
+
+    const seen = new Map<string, string>();
+    for (const p of items) {
+      const name = (p.category ?? '').trim();
+      if (name) seen.set(name.toLowerCase(), name);
+    }
+    if (!seen.size) return;
+
+    const existing = await this.prisma.projectCategory.findMany();
+    const known = new Map<string, { id: string; name: string }>(
+      existing.map((c: any) => [c.name.toLowerCase(), c]),
     );
+
+    let order = existing.length;
+    for (const [key, name] of seen) {
+      const row = known.get(key);
+      if (row) {
+        await this.prisma.projectCategory.update({
+          where: { id: row.id },
+          data: { lastSeenAt: new Date() },
+        });
+      } else {
+        await this.prisma.projectCategory.create({
+          data: {
+            name,
+            slug: slugify(name),
+            colour: PALETTE[order % PALETTE.length],
+            sortOrder: order++,
+            lastSeenAt: new Date(),
+          },
+        });
+        this.logger.log(`New project category from the tracker: "${name}"`);
+      }
+    }
   }
 
   /* ------------------------------------------------- project categories */
 
-  projectCategories(includeInactive = false) {
+  async projectCategories(includeInactive = false) {
+    await this.syncFromTracker().catch((e) =>
+      this.logger.warn(`Category sync skipped: ${e.message}`),
+    );
+
     return this.prisma.projectCategory.findMany({
       where: includeInactive ? {} : { isActive: true },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       include: {
         templates: { include: { mopCategory: true } },
-        _count: { select: { projects: true } },
+        _count: { select: { documents: true } },
       },
     });
   }
 
-  async createProjectCategory(dto: UpsertProjectCategoryDto) {
-    const slug = slugify(dto.slug || dto.name);
-    if (await this.prisma.projectCategory.findUnique({ where: { slug } })) {
-      throw new ConflictException(`A project category "${dto.name}" already exists`);
-    }
-    return this.prisma.projectCategory.create({
-      data: { ...dto, slug, sortOrder: dto.sortOrder ?? 99 },
-      include: { templates: true },
-    });
-  }
-
+  /** Only presentation is editable — the name comes from the tracker. */
   async updateProjectCategory(id: string, dto: Partial<UpsertProjectCategoryDto>) {
     await this.getProjectCategory(id);
-    const { slug, ...rest } = dto;
+    const { slug, name, ...rest } = dto;
     return this.prisma.projectCategory.update({ where: { id }, data: rest });
   }
 
-  async removeProjectCategory(id: string) {
-    const cat = await this.prisma.projectCategory.findUnique({
-      where: { id },
-      include: { _count: { select: { projects: true } } },
+  /** Resolves a tracker category string to its local row. */
+  async resolveByName(name: string | null | undefined) {
+    const trimmed = (name ?? '').trim();
+    if (!trimmed) return null;
+    return this.prisma.projectCategory.findFirst({
+      where: { name: { equals: trimmed, mode: 'insensitive' } },
+      include: { templates: { include: { mopCategory: true } } },
     });
-    if (!cat) throw new NotFoundException('Project category not found');
-    if (cat._count.projects > 0) {
-      throw new BadRequestException(
-        `${cat._count.projects} project(s) use this category. Move or delete them first, or just hide the category.`,
-      );
-    }
-    await this.prisma.projectCategory.delete({ where: { id } });
-    return { deleted: true };
   }
 
   private async getProjectCategory(id: string) {

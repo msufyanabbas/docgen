@@ -235,8 +235,11 @@ model User {
    not code, so new categories are added from the UI without a deploy.
    =========================================================================== */
 
-/// A kind of project — RMS, CCTV, SIM Swap, Smart Locks. User-managed, so new
-/// ones can be added without a deploy.
+/// A kind of project, mirrored from the tracker's `category` field.
+///
+/// These are not authored here: the row exists so MOP categories can be paired
+/// against it and so a colour can be set. A category the tracker stops using is
+/// kept, because documents generated under it still reference it.
 model ProjectCategory {
   id          String  @id @default(uuid())
   name        String
@@ -246,8 +249,11 @@ model ProjectCategory {
   isActive    Boolean @default(true)
   sortOrder   Int     @default(0)
 
-  projects  Project[]
+  /// Last time the tracker was seen using this category.
+  lastSeenAt DateTime?
+
   templates CategoryTemplate[]
+  documents MopDocument[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -292,27 +298,6 @@ model CategoryTemplate {
   @@map("category_templates")
 }
 
-model Project {
-  id   String @id @default(uuid())
-  name String
-  slug String @unique
-
-  projectCategoryId String
-  projectCategory   ProjectCategory @relation(fields: [projectCategoryId], references: [id])
-
-  description String?
-  isActive    Boolean @default(true)
-  sortOrder   Int     @default(0)
-
-  documents MopDocument[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([projectCategoryId])
-  @@map("projects")
-}
-
 enum SiteImpact {
   NO
   YES
@@ -320,8 +305,18 @@ enum SiteImpact {
 
 model MopDocument {
   id        String  @id @default(uuid())
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// The tracker project this MOP was raised for. Stored as a snapshot rather
+  /// than a relation: the tracker owns projects, and a MOP must still read
+  /// correctly if one is renamed or withdrawn upstream.
+  externalProjectId    String?
+  externalSiteId       String
+  externalProjectTitle String?
+  externalCategory     String?
+
+  /// Resolved from externalCategory at creation, and what decides which MOP
+  /// categories were available.
+  projectCategoryId String?
+  projectCategory   ProjectCategory? @relation(fields: [projectCategoryId], references: [id])
 
   mopCategoryId String
   mopCategory   MopCategory @relation(fields: [mopCategoryId], references: [id])
@@ -352,7 +347,8 @@ model MopDocument {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([projectId, mopCategoryId])
+  @@index([externalSiteId])
+  @@index([mopCategoryId])
   @@index([siteId])
   @@map("mop_documents")
 }

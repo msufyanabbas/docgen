@@ -53,7 +53,7 @@ export default function DashboardPage() {
           delay={0.05}
         />
         <Stat
-          label="Active projects"
+          label="Project categories"
           value={data?.cards.projectTotal}
           sub={data ? `${data.byCategory.length} MOP categories in use` : undefined}
           icon={<FolderKanban size={16} />}
@@ -192,7 +192,8 @@ export default function DashboardPage() {
                     <span className="font-mono text-xs">{m.siteId}</span> · {m.tcnSummary}
                   </div>
                   <div className="text-[11px] text-fg-subtle">
-                    {m.project?.name} · {m.mopCategory?.name} · {m.createdBy?.name ?? '—'}
+                    {m.externalProjectTitle || m.externalSiteId} · {m.mopCategory?.name} ·{' '}
+                    {m.createdBy?.name ?? '—'}
                   </div>
                 </div>
                 <span className="shrink-0 text-[11px] text-fg-subtle">{shortDate(m.createdAt)}</span>

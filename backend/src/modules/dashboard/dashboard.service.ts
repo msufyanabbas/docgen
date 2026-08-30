@@ -28,7 +28,7 @@ export class DashboardService {
       this.prisma.mopDocument.count(),
       this.prisma.mopDocument.count({ where: { createdAt: { gte: startOfMonth() } } }),
       this.prisma.package.count(),
-      this.prisma.project.count({ where: { isActive: true } }),
+      this.prisma.projectCategory.count({ where: { isActive: true } }),
       this.prisma.user.count({ where: { isActive: true } }),
       this.prisma.uplItem.count(),
       this.prisma.mopBatch.count(),
@@ -65,30 +65,37 @@ export class DashboardService {
     };
   }
 
+  /** Grouped by tracker site, using the title snapshotted at generation time. */
   private async mopsByProject() {
     const grouped = await this.prisma.mopDocument.groupBy({
-      by: ['projectId'],
+      by: ['externalSiteId'],
       _count: { _all: true },
     });
     if (!grouped.length) return [];
 
-    const projects = await this.prisma.project.findMany({
-      where: { id: { in: grouped.map((g) => g.projectId) } },
-      include: { projectCategory: { select: { name: true, colour: true } } },
+    // One row per site is enough to recover the title and category colour
+    // without joining the tracker, which may be unreachable.
+    const samples = await this.prisma.mopDocument.findMany({
+      where: { externalSiteId: { in: grouped.map((g: any) => g.externalSiteId) } },
+      distinct: ['externalSiteId'],
+      select: {
+        externalSiteId: true,
+        externalProjectTitle: true,
+        externalCategory: true,
+        projectCategory: { select: { colour: true } },
+      },
     });
-    const map = new Map<string, { name: string; slug: string; projectCategory: { name: string; colour: string | null } | null }>(
-      projects.map((p: any) => [p.id, p]),
-    );
+    const map = new Map<string, any>(samples.map((s: any) => [s.externalSiteId, s]));
 
     return grouped
-      .map((g) => {
-        const p = map.get(g.projectId);
+      .map((g: any) => {
+        const sample = map.get(g.externalSiteId);
         return {
-          id: g.projectId,
-          name: p?.name ?? 'Unknown',
-          slug: p?.slug ?? '',
-          category: p?.projectCategory?.name ?? '',
-          colour: p?.projectCategory?.colour ?? '#44489D',
+          id: g.externalSiteId,
+          name: sample?.externalProjectTitle || g.externalSiteId,
+          slug: g.externalSiteId,
+          category: sample?.externalCategory ?? '',
+          colour: sample?.projectCategory?.colour ?? '#44489D',
           count: g._count._all,
         };
       })
@@ -162,7 +169,6 @@ export class DashboardService {
       orderBy: { createdAt: 'desc' },
       take: 6,
       include: {
-        project: { select: { name: true, slug: true } },
         mopCategory: { select: { name: true } },
         createdBy: { select: { name: true } },
       },

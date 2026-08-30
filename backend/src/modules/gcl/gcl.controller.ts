@@ -6,6 +6,8 @@ import {
   UploadedFile,
   UploadedFiles,
   UseInterceptors,
+  Get,
+  Param,
 } from '@nestjs/common';
 import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
@@ -57,6 +59,26 @@ export class GclController {
    * Creates a package per site from the scope sheet, ready for GCL_PDF generation.
    * Two file fields: `file` (the scope workbook) and optional `signature` (PNG/JPEG).
    */
+  /**
+   * Builds a GCL straight from the workbook the tracker already holds against
+   * the project's WO request — no upload step, because the file exists upstream.
+   */
+  @RequirePermission('gcl', 'create')
+  @Post('from-project/:siteId')
+  fromProject(
+    @Param('siteId') siteId: string,
+    @Body() dto: Omit<CreateGclDto, 'externalSiteId'>,
+  ) {
+    return this.builder.createFromProject(siteId, dto);
+  }
+
+  /** Preview what the tracker's attachment contains before committing. */
+  @RequirePermission('gcl', 'view')
+  @Get('from-project/:siteId/preview')
+  previewProject(@Param('siteId') siteId: string) {
+    return this.builder.previewFromProject(siteId);
+  }
+
   @RequirePermission('gcl', 'create')
   @Post('scope/create')
   @ApiConsumes('multipart/form-data')

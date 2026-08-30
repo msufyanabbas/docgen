@@ -4,6 +4,7 @@ import archiver from 'archiver';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { ExternalProjectsService } from '../external-projects/external-projects.service';
 import { DocxToPdfService } from './docx-to-pdf.service';
 import { fillTemplate, mopFileStem } from './mop.templates';
 import { CreateMopDto, QueryMopDto } from './mop.dto';
@@ -32,13 +33,14 @@ export class MopService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly pdf: DocxToPdfService,
+    private readonly externalProjects: ExternalProjectsService,
   ) {}
 
   /* ------------------------------------------------------------- querying */
 
   async findAll(q: QueryMopDto) {
     const where: any = {};
-    if (q.projectId) where.projectId = q.projectId;
+    if (q.externalSiteId) where.externalSiteId = q.externalSiteId;
     if (q.mopCategoryId) where.mopCategoryId = q.mopCategoryId;
     if (q.batchId) where.batchId = q.batchId;
     if (q.search) {
@@ -59,12 +61,7 @@ export class MopService {
         take,
         skip,
         include: {
-          project: {
-            select: {
-              id: true, name: true, slug: true,
-              projectCategory: { select: { id: true, name: true, colour: true } },
-            },
-          },
+          projectCategory: { select: { id: true, name: true, colour: true } },
           mopCategory: { select: { id: true, name: true, slug: true } },
           createdBy: { select: { id: true, name: true } },
         },
@@ -79,12 +76,7 @@ export class MopService {
     const doc = await this.prisma.mopDocument.findUnique({
       where: { id },
       include: {
-        project: {
-          select: {
-            id: true, name: true, slug: true,
-            projectCategory: { select: { id: true, name: true, colour: true } },
-          },
-        },
+        projectCategory: { select: { id: true, name: true, colour: true } },
         mopCategory: { select: { id: true, name: true } },
         createdBy: { select: { id: true, name: true } },
       },
@@ -95,36 +87,48 @@ export class MopService {
 
   /* -------------------------------------------------------------- single */
 
-  /** The template comes from the project category + MOP category pairing. */
-  private async resolve(projectId: string, mopCategoryId: string) {
-    const project = await this.prisma.project.findUnique({
-      where: { id: projectId },
-      include: { projectCategory: true },
+  /**
+   * Resolves the template from the tracker project's category.
+   *
+   * The project itself lives upstream, so this walks: site ID → tracker project
+   * → its `category` string → the local project category → the pairing with the
+   * chosen MOP category → the Word template.
+   */
+  private async resolve(siteId: string, mopCategoryId: string) {
+    const project = await this.externalProjects.findBySiteId(siteId);
+    if (!project) {
+      throw new NotFoundException(`Project "${siteId}" was not found in the tracker.`);
+    }
+
+    const category = await this.prisma.projectCategory.findFirst({
+      where: { name: { equals: (project.category ?? '').trim(), mode: 'insensitive' } },
     });
-    if (!project) throw new NotFoundException('Project not found');
+    if (!category) {
+      throw new BadRequestException(
+        `No project category matches "${project.category ?? 'none'}". ` +
+          `Open Project categories so it can be picked up from the tracker.`,
+      );
+    }
 
     const link = await this.prisma.categoryTemplate.findUnique({
       where: {
-        projectCategoryId_mopCategoryId: {
-          projectCategoryId: project.projectCategoryId,
-          mopCategoryId,
-        },
+        projectCategoryId_mopCategoryId: { projectCategoryId: category.id, mopCategoryId },
       },
       include: { mopCategory: true },
     });
 
     if (!link) {
-      const category = await this.prisma.mopCategory.findUnique({ where: { id: mopCategoryId } });
+      const mopCategory = await this.prisma.mopCategory.findUnique({ where: { id: mopCategoryId } });
       throw new BadRequestException(
-        `${project.projectCategory.name} projects have no "${category?.name ?? 'that'}" MOP. ` +
-          `Add the pairing under MOP Categories if it should exist.`,
+        `"${category.name}" projects have no "${mopCategory?.name ?? 'that'}" MOP. ` +
+          `Pair them under Project categories if they should.`,
       );
     }
-    return { project, link };
+    return { project, category, link };
   }
 
   async create(dto: CreateMopDto, userId: string) {
-    const { project, link } = await this.resolve(dto.projectId, dto.mopCategoryId);
+    const { project, category, link } = await this.resolve(dto.externalSiteId, dto.mopCategoryId);
 
     const impact = dto.siteImpact ?? SiteImpact.NO;
     const summary =
@@ -132,7 +136,11 @@ export class MopService {
 
     const doc = await this.prisma.mopDocument.create({
       data: {
-        projectId: project.id,
+        externalProjectId: project.id,
+        externalSiteId: project.siteId,
+        externalProjectTitle: project.title,
+        externalCategory: project.category,
+        projectCategoryId: category.id,
         mopCategoryId: link.mopCategoryId,
         templateKey: link.templateKey,
         tcnSummary: summary,
@@ -156,7 +164,7 @@ export class MopService {
   async render(id: string) {
     const doc = await this.prisma.mopDocument.findUnique({
       where: { id },
-      include: { mopCategory: true, project: { include: { projectCategory: true } } },
+      include: { mopCategory: true, projectCategory: true },
     });
     if (!doc) throw new NotFoundException('MOP document not found');
 
@@ -164,7 +172,7 @@ export class MopService {
     // reproduces it even if the category has since been re-pointed.
     let templateKey = doc.templateKey;
     if (!templateKey) {
-      const { link } = await this.resolve(doc.projectId, doc.mopCategoryId);
+      const { link } = await this.resolve(doc.externalSiteId, doc.mopCategoryId);
       templateKey = link.templateKey;
     }
 
@@ -199,7 +207,7 @@ export class MopService {
         pdfPath: pdfSaved?.filePath ?? null,
       },
       include: {
-        project: { select: { id: true, name: true, slug: true } },
+        projectCategory: { select: { id: true, name: true } },
         mopCategory: { select: { id: true, name: true } },
       },
     });
@@ -243,8 +251,8 @@ export class MopService {
   };
 
   /** Template workbook people download, fill in and upload back. */
-  async bulkTemplate(projectId: string, mopCategoryId: string) {
-    const { project, link } = await this.resolve(projectId, mopCategoryId);
+  async bulkTemplate(siteId: string, mopCategoryId: string) {
+    const { project, link } = await this.resolve(siteId, mopCategoryId);
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('MOP Bulk');
@@ -287,7 +295,7 @@ export class MopService {
     const notes = wb.addWorksheet('Instructions');
     notes.getColumn(1).width = 100;
     [
-      `Bulk MOP generation — ${project.name} / ${link.mopCategory.name}`,
+      `Bulk MOP generation — ${project.title} / ${link.mopCategory.name}`,
       '',
       'One row per site. Site ID is the only required column.',
       'Blank TCN Summary falls back to this category default:',
@@ -302,7 +310,7 @@ export class MopService {
     });
 
     return {
-      fileName: `MOP_Bulk_Template_${project.slug}_${link.mopCategory.slug}.xlsx`,
+      fileName: `MOP_Bulk_Template_${project.siteId}_${link.mopCategory.slug}.xlsx`,
       buffer: Buffer.from(await wb.xlsx.writeBuffer()),
     };
   }
@@ -380,12 +388,12 @@ export class MopService {
   async bulkGenerate(
     buffer: Buffer,
     fileName: string,
-    projectId: string,
+    siteId: string,
     mopCategoryId: string,
     userId: string,
     defaults: { requesterName?: string; pmName?: string },
   ) {
-    const { project, link } = await this.resolve(projectId, mopCategoryId);
+    const { project, category, link } = await this.resolve(siteId, mopCategoryId);
 
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buffer as any);
@@ -415,7 +423,11 @@ export class MopService {
 
         const doc = await this.prisma.mopDocument.create({
           data: {
-            projectId: project.id,
+            externalProjectId: project.id,
+            externalSiteId: project.siteId,
+            externalProjectTitle: project.title,
+            externalCategory: project.category,
+            projectCategoryId: category.id,
             mopCategoryId: link.mopCategoryId,
             templateKey: link.templateKey,
             tcnSummary: r.tcnSummary?.trim() || link.defaultTcnSummary || link.mopCategory.name,
@@ -454,7 +466,7 @@ export class MopService {
   async bulkZip(batchId: string) {
     const batch = await this.prisma.mopBatch.findUnique({
       where: { id: batchId },
-      include: { documents: { include: { mopCategory: true, project: true } } },
+      include: { documents: { include: { mopCategory: true } } },
     });
     if (!batch) throw new NotFoundException('Batch not found');
     if (!batch.documents.length) throw new BadRequestException('This batch produced no documents.');

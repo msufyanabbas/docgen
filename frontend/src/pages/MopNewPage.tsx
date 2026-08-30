@@ -13,7 +13,7 @@ import FileDrop from '../components/FileDrop';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type {
-  CategoryTemplate, DirectoryUser, MopBatch, MopDocument, Project, SiteImpact,
+  CategoryTemplate, DirectoryUser, MopBatch, MopDocument, Project, ProjectsResult, SiteImpact,
 } from '../lib/types';
 
 type Mode = 'single' | 'bulk';
@@ -33,7 +33,7 @@ export default function MopNewPage() {
   const [file, setFile] = useState<File | null>(null);
 
   const [form, setForm] = useState({
-    projectId: params.get('project') ?? '',
+    externalSiteId: params.get('project') ?? '',
     mopCategoryId: '',
     siteId: '',
     tcnSummary: '',
@@ -45,13 +45,16 @@ export default function MopNewPage() {
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   useEffect(() => {
-    api.get<Project[]>('/projects').then(setProjects).catch((e) => setError(e.message));
+    api
+      .get<ProjectsResult>('/projects')
+      .then((r) => setProjects(r.items))
+      .catch((e) => setError((e as Error).message));
     api.get<DirectoryUser[]>('/directory/users').then(setPeople).catch(() => setPeople([]));
   }, []);
 
   const project = useMemo(
-    () => projects?.find((p) => p.id === form.projectId) ?? null,
-    [projects, form.projectId],
+    () => projects?.find((p) => p.siteId === form.externalSiteId) ?? null,
+    [projects, form.externalSiteId],
   );
 
   /** Only the pairings defined for this project's category. */
@@ -74,7 +77,7 @@ export default function MopNewPage() {
       tcnSummary: first?.defaultTcnSummary ?? f.tcnSummary,
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id]);
+  }, [project?.siteId]);
 
   function chooseCategory(id: string) {
     const next = available.find((t) => t.mopCategoryId === id);
@@ -107,7 +110,7 @@ export default function MopNewPage() {
     setNotice(null);
     try {
       const result = await api.upload<MopBatch>('/mop/bulk', file, {
-        projectId: form.projectId,
+        externalSiteId: form.externalSiteId,
         mopCategoryId: form.mopCategoryId,
         requesterName: form.requesterName,
         pmName: form.pmName,
@@ -131,7 +134,7 @@ export default function MopNewPage() {
     );
   }
 
-  const ready = form.projectId && form.mopCategoryId;
+  const ready = form.externalSiteId && form.mopCategoryId;
   const canSubmit = ready && form.siteId.trim() && form.requesterName.trim() && form.pmName.trim();
 
   return (
@@ -182,12 +185,16 @@ export default function MopNewPage() {
       <Card>
         <CardHead title="1 · Project and category" icon={<span className="text-xs font-bold">1</span>} />
         <div className="grid gap-4 px-4 py-5 sm:px-5 sm:grid-cols-2">
-          <Field label="Project">
-            <Select value={form.projectId} onChange={(e) => set('projectId', e.target.value)}>
+          <Field label="Project" hint="From the Tawal tracker">
+            <Select
+              value={form.externalSiteId}
+              onChange={(e) => set('externalSiteId', e.target.value)}
+            >
               <option value="">Select a project…</option>
               {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — {p.projectCategory?.name}
+                <option key={p.siteId} value={p.siteId}>
+                  {p.siteId} — {p.title}
+                  {p.projectCategory ? ` (${p.projectCategory.name})` : ''}
                 </option>
               ))}
             </Select>
@@ -307,7 +314,7 @@ export default function MopNewPage() {
                     disabled={!ready}
                     onClick={() =>
                       api.download(
-                        `/mop/bulk/template/${form.projectId}/${form.mopCategoryId}`,
+                        `/mop/bulk/template/${form.externalSiteId}/${form.mopCategoryId}`,
                         'MOP_Bulk_Template.xlsx',
                       )
                     }

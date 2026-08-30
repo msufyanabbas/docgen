@@ -93,13 +93,13 @@ export class MopController {
 
   /* ----------------------------------------------------------------- bulk */
 
-  @Get('bulk/template/:projectId/:mopCategoryId')
+  @Get('bulk/template/:siteId/:mopCategoryId')
   async bulkTemplate(
-    @Param('projectId') projectId: string,
+    @Param('siteId') siteId: string,
     @Param('mopCategoryId') mopCategoryId: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { fileName, buffer } = await this.mop.bulkTemplate(projectId, mopCategoryId);
+    const { fileName, buffer } = await this.mop.bulkTemplate(siteId, mopCategoryId);
     res.set({ 'Content-Type': MIME.xlsx, 'Content-Disposition': disposition(fileName) });
     return new StreamableFile(buffer);
   }
@@ -120,7 +120,7 @@ export class MopController {
     return this.mop.bulkGenerate(
       file.buffer,
       file.originalname,
-      dto.projectId,
+      dto.externalSiteId,
       dto.mopCategoryId,
       userId,
       { requesterName: dto.requesterName, pmName: dto.pmName },

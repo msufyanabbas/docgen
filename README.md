@@ -118,36 +118,40 @@ cost the other forty-nine. The whole batch downloads as a ZIP with DOCX and PDF 
 
 ---
 
-## GCL and the project tracker
+## Everything hangs off the tracker
 
-Projects for GCL come from the Tawal-side tracker, not this database:
+Projects are **not stored here**. They are read live from the Tawal tracker, and so are their
+categories:
 
 ```
 GET http://147.79.114.76:5003/api/projects/public/projects
 
-Create GCL  →  closeout.patTcn.status   === 'Approved'
-Upload GCL  →  closeout.patStatus.status === 'Approved'
+Projects screen  →  every project, joined to its local category and MOP count
+Create GCL       →  mapping.woIssuance.status === 'Approved'
+                 &&  mapping.woRequest.status  === 'Requested'
+                 &&  mapping.woRequest.fileUrl is present
 ```
 
-**GCL documents** is the library — every GCL with its BOQ, Work Order and PAC, grouped by
-project, the same shape as the MOP library. **Create GCL** and **Upload GCL** open a dialog that
-asks for the project before the form appears.
+**Create GCL is the only GCL entry point.** The scope workbook attached to the WO request is
+downloaded, parsed and previewed automatically — there is no upload step, because the file
+already exists upstream.
 
-**Create GCL produces the GCL and nothing else.** The BOQ, Work Order and PAC are generated
-later from the package screen, once the as-built quantities and TAG numbers are known — issuing
-them at creation time would mean issuing commercial documents against design figures.
+**Project categories mirror the tracker's `category` field.** They cannot be created here: a
+category appears the moment a project uses it, and is never deleted, because MOPs generated
+under it still reference it. What you configure locally is the *pairing* — each project category
+to the MOP categories its projects should produce, and the Word format each pairing uses.
 
-**Choosing a project is mandatory.** The rest of the screen stays locked until
-one is selected, and the API refuses a GCL without a valid, eligible project — a GCL that can't
-be traced back to a tracker project is worse than no GCL. The stage is re-checked server-side,
-so an approved PAT TCN does not let a signed GCL be uploaded against a project whose PAT is
-still pending.
+So the flow is:
 
-The list refreshes itself every 45 seconds while the tab is visible — the tracker is edited by
-another team, so a project can become eligible while the screen is open. Polling pauses on a
-hidden tab. Responses are cached server-side for 20 seconds with a 12-second timeout. Fields the tracker leaves empty
-display as **N/A**. If the service is unreachable the screen says so plainly rather than
-erroring — but no GCL can be raised until it is back, which is the correct outcome.
+```
+tracker project  →  its category  →  local project category
+                                        └── paired MOP categories  →  MOP document
+                    └── WO request attachment  →  GCL  →  BOQ / Work Order / PAC
+```
+
+A MOP document stores the site ID, title and category as a **snapshot** rather than a foreign
+key: the tracker owns projects, and a MOP must still read correctly if one is renamed or
+withdrawn upstream.
 
 ---
 

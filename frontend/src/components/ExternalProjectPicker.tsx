@@ -1,4 +1,4 @@
-import { AlertTriangle, Building2, Check, RefreshCw, Search } from 'lucide-react';
+import { AlertTriangle, Building2, Check, Paperclip, RefreshCw, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { cn } from '../lib/cn';
 import { api } from '../lib/api';
@@ -25,7 +25,7 @@ export default function ExternalProjectPicker({
   onChange,
   fill = false,
 }: {
-  stage: 'create' | 'upload';
+  stage: 'create';
   value: string | null;
   onChange: (siteId: string | null, project: ExternalProject | null) => void;
   /** Inside a dialog the parent scrolls, so don't add a second scroll box. */
@@ -151,9 +151,7 @@ export default function ExternalProjectPicker({
           {filtered.length === 0 ? (
             <p className="rounded-xl border border-line bg-card/50 px-4 py-6 text-center text-sm text-fg-subtle">
               {data.items.length === 0
-                ? stage === 'create'
-                  ? 'No projects with an approved PAT TCN.'
-                  : 'No projects with an approved PAT.'
+                ? 'No projects are ready for a GCL — that needs an issued WO, an open WO request, and a scope sheet attached to it.'
                 : 'No projects match that search.'}
             </p>
           ) : (
@@ -184,11 +182,17 @@ export default function ExternalProjectPicker({
                     </div>
 
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-fg-subtle">
-                      <span>Tawal ID {na(p.tawalId)}</span>
+                      <span>WO {na(p.woNumber)}</span>
                       <span>{na(p.category)}</span>
                       <span>Lead {na(p.teamLead)}</span>
-                      <span>{na(p.city)} · {na(p.region)}</span>
                     </div>
+
+                    {p.scopeFileName && (
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-cyan-brand">
+                        <Paperclip size={11} />
+                        <span className="truncate">{p.scopeFileName}</span>
+                      </div>
+                    )}
                   </button>
                 );
               })}
@@ -196,9 +200,7 @@ export default function ExternalProjectPicker({
           )}
 
           <p className="mt-2 text-[11px] text-fg-subtle">
-            {stage === 'create'
-              ? 'Projects whose PAT TCN is approved.'
-              : 'Projects whose PAT is approved.'}{' '}
+            WO issued, request still open, scope sheet attached.{' '}
             {filtered.length} of {data.items.length} shown.
           </p>
         </>

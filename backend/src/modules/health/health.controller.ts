@@ -15,10 +15,10 @@ export class HealthController {
   @Get()
   async check() {
     const [{ ok }] = await this.prisma.$queryRawUnsafe<any[]>('SELECT 1 as ok');
-    const [uplItems, users, projects] = await Promise.all([
+    const [uplItems, users, projectCategories] = await Promise.all([
       this.prisma.uplItem.count(),
       this.prisma.user.count(),
-      this.prisma.project.count(),
+      this.prisma.projectCategory.count(),
     ]);
 
     return {
@@ -26,7 +26,9 @@ export class HealthController {
       db: ok === 1,
       uplItems,
       users,
-      projects,
+      // Projects live in the tracker now, so what's countable here is the
+      // category catalogue they map onto.
+      projectCategories,
       // Surfaces a missing LibreOffice before someone tries to make a MOP PDF.
       pdfEngine: (await this.pdf.available()) ? 'ready' : 'unavailable',
       uptime: process.uptime(),

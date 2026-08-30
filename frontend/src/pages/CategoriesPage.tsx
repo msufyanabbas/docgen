@@ -67,7 +67,7 @@ export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' 
         </h1>
         <p className="mt-1 text-sm text-fg-muted">
           {isProjects
-            ? 'The kinds of project you run — RMS, CCTV, SIM Swap and so on. Each project belongs to one.'
+            ? 'Mirrored from the tracker. Pair each with the MOP categories its projects should produce.'
             : 'The stages of work — Survey, Installation, PAT. Pair them with a project category to say which MOP format they produce.'}
         </p>
       </div>
@@ -77,49 +77,10 @@ export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' 
 
       {isProjects ? (
         <>
-          {canEdit && (
-            <Card>
-              <CardHead title="Add a project category" icon={<Plus size={15} />} />
-              <div className="grid gap-4 px-4 py-5 sm:px-5 sm:grid-cols-2 lg:grid-cols-4">
-                <Field label="Name">
-                  <Input
-                    placeholder="Fibre"
-                    value={newProject.name}
-                    onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-                  />
-                </Field>
-                <Field label="Description" className="md:col-span-2">
-                  <Input
-                    value={newProject.description}
-                    onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-                  />
-                </Field>
-                <Field label="Colour">
-                  <Input
-                    type="color"
-                    className="h-[42px] p-1"
-                    value={newProject.colour}
-                    onChange={(e) => setNewProject({ ...newProject, colour: e.target.value })}
-                  />
-                </Field>
-              </div>
-              <div className="flex justify-end border-t border-line/60 px-5 py-4">
-                <Button
-                  variant="gradient"
-                  disabled={!newProject.name}
-                  loading={busy === 'new-project'}
-                  onClick={() =>
-                    act(async () => {
-                      await api.send('/categories/projects', 'POST', newProject);
-                      setNewProject({ name: '', description: '', colour: '#01C2F3' });
-                    }, 'new-project')
-                  }
-                >
-                  Add category
-                </Button>
-              </div>
-            </Card>
-          )}
+          <Alert kind="info">
+            Project categories mirror the tracker's own — one appears here as soon as a project
+            uses it. Pair each with the MOP categories its projects should produce.
+          </Alert>
 
           {projectCats.length === 0 && <Empty icon={<FolderTree size={22} />}>No project categories yet.</Empty>}
 
@@ -133,7 +94,7 @@ export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' 
                     {!c.isActive && <Badge tone="neutral">hidden</Badge>}
                   </span>
                 }
-                hint={c.description ?? `${c._count?.projects ?? 0} project(s)`}
+                hint={c.description ?? `${c._count?.documents ?? 0} MOP document(s)`}
                 actions={
                   canEdit && (
                     <div className="flex items-center gap-3">
@@ -146,14 +107,6 @@ export default function CategoriesPage({ tab = 'projects' }: { tab?: 'projects' 
                       />
                       <Button variant="outline" size="sm" onClick={() => setLinkFor(linkFor === c.id ? null : c.id)}>
                         <Link2 size={13} /> Pair MOP
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-rose-500"
-                        onClick={() => act(() => api.send(`/categories/projects/${c.id}`, 'DELETE'), c.id)}
-                      >
-                        <Trash2 size={13} />
                       </Button>
                     </div>
                   )

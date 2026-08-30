@@ -16,7 +16,7 @@ export default function ProjectSelectDialog({
   onConfirm,
 }: {
   open: boolean;
-  stage: 'create' | 'upload';
+  stage: 'create';
   onClose: () => void;
   onConfirm: (project: ExternalProject) => void;
 }) {
@@ -69,11 +69,9 @@ export default function ProjectSelectDialog({
             {/* header — fixed */}
             <div className="flex items-start justify-between gap-3 border-b border-line/60 px-5 py-4">
               <div>
-                <h2 className="text-base font-semibold text-fg">
-                  {stage === 'create' ? 'Create a GCL' : 'Upload a signed GCL'}
-                </h2>
+                <h2 className="text-base font-semibold text-fg">Create a GCL</h2>
                 <p className="mt-0.5 text-xs text-fg-muted">
-                  Choose the project this GCL belongs to.
+                  Pick a project — its scope sheet is read straight from the tracker.
                 </p>
               </div>
               <button

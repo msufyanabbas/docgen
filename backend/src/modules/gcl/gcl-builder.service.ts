@@ -79,6 +79,25 @@ export class GclBuilderService {
    * the crew adjusts it on the review screen once the work is actually done, which
    * is what makes the As-Built BOQ differ from the design scope.
    */
+  /**
+   * Preview of the workbook the tracker holds for this project.
+   *
+   * Same shape as the upload preview, so the UI does not need a second code
+   * path — the only difference is where the bytes came from.
+   */
+  async previewFromProject(siteId: string) {
+    const { fileName, buffer } = await this.externalProjects.fetchScopeFile(siteId);
+    const preview = await this.previewScope(buffer);
+    return { ...preview, sourceFileName: fileName, siteId };
+  }
+
+  /** Creates the GCL from that same workbook. */
+  async createFromProject(siteId: string, dto: Omit<CreateGclDto, 'externalSiteId'>) {
+    const { fileName, buffer } = await this.externalProjects.fetchScopeFile(siteId);
+    this.logger.log(`Building GCL for ${siteId} from tracker attachment "${fileName}"`);
+    return this.createFromScope(buffer, { ...dto, externalSiteId: siteId } as CreateGclDto);
+  }
+
   async createFromScope(
     buffer: Buffer,
     dto: CreateGclDto,
