@@ -153,7 +153,7 @@ export default function ExternalProjectPicker({
               {data.items.length === 0
                 ? stage === 'create'
                   ? 'No projects are ready for a GCL — that needs an issued WO, an open WO request, and a scope sheet attached to it.'
-                  : 'No projects with an approved PAT.'
+                  : 'No projects have a signed GCL attached to an approved PAT.'
                 : 'No projects match that search.'}
             </p>
           ) : (
@@ -204,7 +204,7 @@ export default function ExternalProjectPicker({
           <p className="mt-2 text-[11px] text-fg-subtle">
             {stage === 'create'
               ? 'WO issued, request still open, scope sheet attached.'
-              : 'Projects whose PAT is approved.'}{' '}
+              : 'PAT approved, signed GCL attached.'}{' '}
             {filtered.length} of {data.items.length} shown.
           </p>
         </>

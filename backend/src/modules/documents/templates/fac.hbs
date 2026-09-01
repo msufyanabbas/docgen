@@ -1,0 +1,155 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  /*
+    Final Acceptance Certificate — geometry from 13_Sites_FAC.pdf.
+
+    One row per site: that is the point of the form. Sites accepted with no
+    outstanding items list share a single certificate, so the grid is padded to
+    a fixed row count and a 1-site certificate looks like a 13-site one.
+  */
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 595.32pt; height: 841.92pt; position: relative;
+    font-family: Calibri, Carlito, "DejaVu Sans", Verdana, sans-serif;
+    font-size: 6.4pt; color: #000; -webkit-print-color-adjust: exact;
+  }
+  .ar {
+    direction: rtl;
+    font-family: "Noto Naskh Arabic", "Noto Sans Arabic", Tahoma, Amiri, "DejaVu Sans", sans-serif;
+  }
+  .abs { position: absolute; }
+
+  .banner { left: 0; width: 595.32pt; text-align: center; font-size: 5.4pt; color: #1a7f37; }
+
+  table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+  td, th { border: 0.6pt solid #000; padding: 1.6pt 3pt; vertical-align: middle; }
+
+  .logo { left: 380pt; top: 104pt; width: 145pt; text-align: right; }
+  .logo img { height: 26pt; }
+
+  .sheet { left: 36pt; top: 146pt; width: 523pt; }
+
+  .head td { height: 24pt; background: #f2f2f2; font-weight: bold; text-align: center; font-size: 8.4pt; }
+  .blurb td { height: 100pt; vertical-align: top; font-size: 5.9pt; line-height: 1.42; }
+
+  .meta td { height: 13pt; }
+  .meta .k { width: 96pt; font-weight: bold; }
+  .meta .v { text-align: center; font-weight: bold; }
+  .meta .k-ar { width: 128pt; text-align: right; font-weight: bold; }
+
+  .grid th { height: 14pt; background: #f2f2f2; font-weight: bold; text-align: center; font-size: 6.8pt; }
+  .grid td { height: 13.6pt; text-align: center; font-size: 6.2pt; }
+
+  .sign td { height: 13pt; }
+  .sign .title { height: 15pt; background: #f2f2f2; font-weight: bold; text-align: center; }
+  .sign img { height: 26pt; }
+</style>
+</head>
+<body>
+  <div class="abs banner" style="top: 18pt;">This Content is Public</div>
+
+  <div class="abs logo"><img src="{{tawalLogo}}" alt="TAWAL" /></div>
+
+  <div class="abs sheet">
+    <table class="head">
+      <tr>
+        <td style="width: 300pt;">Final Acceptance Certificate</td>
+        <td class="ar">شهادة استلام نهائية</td>
+      </tr>
+    </table>
+
+    <table class="blurb">
+      <tr>
+        <td style="width: 300pt;">
+          According to the Agreement concluded between the undersigned and upon the supplier's
+          delivery of all works with the repair of all defects , malfunctions and errors contained
+          in the Preliminary Acceptance Certificate ( PAC ) for the site(s), TAWAL confirms that
+          the site(s) has been received without any outstanding items list (OIL) .<br /><br />
+          Accordingly , these works were handed over to the project management at TAWAL and became
+          under its responsibility .<br /><br />
+          it is understood that this certificate does not exempt the supplier from completing the
+          work according to the technical and contractual specifications in force at TAWAL .
+        </td>
+        <td class="ar">
+          حسب الاتفاقية المبرمه بين الموقعين ادناه و بناء على تسليم المقاول جميع الأعمال مع اصلاح
+          العيوب و الأعطال و الأخطاء الوارده في شهادة الاستلام الابتدائي ؛ تؤكد شركة توال أنه تم
+          استلام الموقع / المواقع من دون أي مخرجات معلقه ؛ و عليه جرى تسليم هذه الأعمال الى إدارة
+          المشروع في شركة توال و أصبح تحت مسئوليتها .<br /><br />
+          ومن المفهوم إن هذه الشهادة لا تعفى المقاول من إتمام العمل بحسب المواصفات الفنية
+          والتعاقدية المعمول بها في شركة توال.
+        </td>
+      </tr>
+    </table>
+
+    <table class="meta">
+      <tr>
+        <td class="k">Project Name :</td>
+        <td class="v" style="width: 200pt;">{{projectName}}</td>
+        <td style="width: 99pt;"></td>
+        <td class="k-ar ar">اسم المشروع :</td>
+      </tr>
+      <tr>
+        <td class="k">Sub-Project Name :</td>
+        <td class="v">{{subProjectName}}</td>
+        <td></td>
+        <td class="k-ar ar">اسم المشروع الفرعي:</td>
+      </tr>
+      <tr>
+        <td class="k">Contractor Name :</td>
+        <td class="v">{{contractorName}}</td>
+        <td></td>
+        <td class="k-ar ar">اسم المقاول :</td>
+      </tr>
+      <tr>
+        <td class="k">P.O No. :</td>
+        <td class="v">{{poNumber}}</td>
+        <td></td>
+        <td class="k-ar ar">رقم أمر الشراء:</td>
+      </tr>
+    </table>
+
+    <table class="grid">
+      <tr>
+        <th style="width: 96pt;">Site ID</th>
+        <th style="width: 100pt;">Region</th>
+        <th style="width: 100pt;">District</th>
+        <th>WO Number</th>
+      </tr>
+      {{#each rows}}
+      <tr>
+        <td>{{this.siteNo}}</td>
+        <td>{{this.region}}</td>
+        <td>{{this.district}}</td>
+        <td>{{this.woNumber}}</td>
+      </tr>
+      {{/each}}
+    </table>
+
+    <table class="sign">
+      <tr>
+        <td class="title" style="width: 300pt;">Contractor Project Manager</td>
+        <td class="title" style="text-align: left; padding-left: 4pt;">TAWAL Project Manager</td>
+      </tr>
+      <tr>
+        <td>Name : {{contractorPmName}}</td>
+        <td>Name :</td>
+      </tr>
+      <tr>
+        <td style="height: 32pt;">{{#if signature}}<img src="{{signature}}" alt="" />{{/if}}</td>
+        <td>Sign :</td>
+      </tr>
+      <tr>
+        <td>Date : {{issueDate}}</td>
+        <td>Date :</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="abs banner" style="top: 800pt;">This Content is Public</div>
+</body>
+</html>

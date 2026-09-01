@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libreoffice-writer-nogui libreoffice-core-nogui \
       default-jre-headless \
       fonts-crosextra-carlito fonts-crosextra-caladea \
+      poppler-utils \
       openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 

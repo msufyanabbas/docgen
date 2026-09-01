@@ -143,7 +143,49 @@ Projects **without a site ID are left out** of the list entirely. The site ID id
 on everything Tawal receives, so being offered a project that fails on the next screen is worse
 than not being offered it.
 
-**Two ways in.** *Create GCL* builds from the scope workbook attached to the WO request — no
+**Three ways in, none of which involve uploading a file.** Every document the platform needs is
+already attached to the project on the tracker:
+
+```
+Create GCL   ←  mapping.woRequest.fileUrl       the scope workbook
+Signed GCL   ←  closeout.patStatus.fileUrl      the signed GCL
+Bulk GCL     ←  the same, across many projects at once
+```
+
+```
+Create GCL   →  woIssuance Approved · woRequest Requested · scope sheet attached
+Signed GCL   →  patStatus  Approved · signed GCL attached
+```
+
+An approved PAT alone is not enough for the signed path — the document has to be there, because
+it is what everything downstream is built from.
+
+### Bulk GCL
+
+Select projects (or all of them), press Continue, and each project's signed GCL is fetched, read,
+priced and its sign-off box checked. Then one combined set:
+
+```
+one As-Built BOQ   every line across every site, each row carrying its own WO number
+one Work Order     one row per site, the same form for 1 site or 100
+FAC                sites signed off "Accepted"          — no outstanding items
+PAC                sites signed off "Accepted with Oil" — oil still to resolve
+(rejected sites get no certificate)
+```
+
+A site accepted with oil and one accepted without are at different stages, so they cannot share a
+certificate — hence the split rather than one document.
+
+**Acceptance is read, then confirmed.** All three checkboxes on the GCL are the same unchecked
+Wingdings glyph; the tick is drawn on top and is not in the text layer. So page 1 is rasterised
+and the ink measured per row — on the reference GCL that reads 6.1% against 0.08% and 0.09%,
+which identifies the ticked row cleanly. It is still a mark on a scanned form and it decides which
+certificate Tawal receives, so every value is shown for confirmation and anything ambiguous is
+flagged.
+
+One unreachable document is reported and skipped; it does not cost the rest of the batch.
+
+**Two scope-sheet paths.** *Create GCL* builds from the scope workbook attached to the WO request — no
 upload, because the file already exists upstream. *Upload GCL* reads one already signed on site,
 and its list is projects with an approved **PAT**, since a signed GCL only exists once the work
 has been accepted. The scope workbook attached to the WO request is

@@ -66,6 +66,8 @@ export interface ParsedGcl {
   quantityColumns: QuantityColumn[];
   lines: ParsedGclLine[];
   warnings: string[];
+  /** Page-1 text with positions, used to locate the MSP sign-off block. */
+  textPositions: { text: string; x: number; y: number }[];
 }
 
 const ITEM_CODE_RE = /^[A-Z]{3,}-[A-Z]{2,}-\d{2,}$/; // SMART-TWR-001
@@ -528,6 +530,7 @@ export async function parseGcl(buffer: Buffer): Promise<ParsedGcl> {
     quantityColumns,
     lines,
     warnings,
+    textPositions: tokens.map((t) => ({ text: t.text, x: t.x, y: t.y })),
   };
 }
 

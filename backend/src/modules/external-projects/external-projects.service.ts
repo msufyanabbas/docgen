@@ -46,8 +46,15 @@ export interface ExternalProject {
   /** Path to the scope workbook on the tracker, relative to its origin. */
   scopeFileUrl: string | null;
   scopeFileName: string | null;
-  /** True when this project can have a GCL built from its attachment. */
+
+  /** The signed GCL, attached to the PAT sign-off. */
+  gclFileUrl: string | null;
+  gclFileName: string | null;
+
+  /** True when a GCL can be built from the WO request's scope sheet. */
   readyForGcl: boolean;
+  /** True when a signed GCL is attached and can be processed. */
+  readyForUpload: boolean;
 }
 
 export interface ExternalProjectsResult {
@@ -74,6 +81,17 @@ export interface ExternalProjectsResult {
  */
 function hasSiteId(row: any): boolean {
   return Boolean(String(row?.siteId ?? '').trim());
+}
+
+/**
+ * Ready to process a signed GCL: the PAT is approved and the signed document is
+ * attached to that sign-off. Without the file there is nothing to read.
+ */
+function readyForUpload(closeout: any): boolean {
+  return (
+    eq(closeout?.patStatus?.status, 'approved') &&
+    Boolean(String(closeout?.patStatus?.fileUrl ?? '').trim())
+  );
 }
 
 function readyForGcl(mapping: any): boolean {
@@ -181,7 +199,10 @@ export class ExternalProjectsService {
       woIssuanceStatus: text(mapping?.woIssuance?.status),
       scopeFileUrl: text(mapping?.woRequest?.fileUrl),
       scopeFileName: text(mapping?.woRequest?.fileName),
+      gclFileUrl: text(closeout?.patStatus?.fileUrl),
+      gclFileName: text(closeout?.patStatus?.fileName),
       readyForGcl: readyForGcl(mapping),
+      readyForUpload: readyForUpload(closeout),
     };
   }
 
@@ -213,7 +234,9 @@ export class ExternalProjectsService {
     if (stage === 'create') {
       items = items.filter((p) => p.readyForGcl);
     } else if (stage === 'upload') {
-      items = items.filter((p) => p.patStatus?.toLowerCase() === 'approved');
+      // An approved PAT alone isn't enough — the signed GCL has to be attached,
+      // because that document is what everything downstream is built from.
+      items = items.filter((p) => p.readyForUpload);
     }
 
     items.sort((a, b) => a.siteId.localeCompare(b.siteId));
@@ -255,6 +278,67 @@ export class ExternalProjectsService {
    * resolved against the tracker's own host — the point is that nobody has to
    * re-upload a file that already exists upstream.
    */
+  /** The signed GCL attached to the project's PAT sign-off. */
+  async fetchGclFile(siteId: string): Promise<{ fileName: string; buffer: Buffer }> {
+    const project = await this.findBySiteId(siteId);
+    if (!project) {
+      throw new NotFoundException(`Project "${siteId}" was not found in the tracker.`);
+    }
+    if (!project.gclFileUrl) {
+      throw new BadRequestException(
+        `Project "${siteId}" has no signed GCL attached to its PAT sign-off.`,
+      );
+    }
+    return this.download(
+      project.gclFileUrl,
+      project.gclFileName ?? `${siteId}-GCL.pdf`,
+      siteId,
+      'signed GCL',
+    );
+  }
+
+  /** Shared downloader — the tracker returns paths relative to its own host. */
+  private async download(
+    fileUrl: string,
+    fallbackName: string,
+    siteId: string,
+    what: string,
+  ): Promise<{ fileName: string; buffer: Buffer }> {
+    const href = /^https?:\/\//i.test(fileUrl)
+      ? fileUrl
+      : `${this.origin}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+
+    try {
+      const res = await fetch(href, { signal: controller.signal });
+      if (!res.ok) {
+        throw new BadRequestException(
+          `The tracker returned ${res.status} for the ${what} of "${siteId}".`,
+        );
+      }
+      const buffer = Buffer.from(await res.arrayBuffer());
+      if (!buffer.length) {
+        throw new BadRequestException(`The ${what} for "${siteId}" is empty.`);
+      }
+
+      const fileName = fallbackName || decodeURIComponent(href.split('/').pop() || 'file');
+      this.logger.log(
+        `Fetched ${what} for ${siteId}: ${fileName} (${(buffer.length / 1024).toFixed(0)} KB)`,
+      );
+      return { fileName, buffer };
+    } catch (e: any) {
+      if (e instanceof BadRequestException || e instanceof NotFoundException) throw e;
+      const reason = e?.name === 'AbortError' ? 'the download timed out' : e.message;
+      throw new BadRequestException(
+        `Could not download the ${what} for "${siteId}" — ${reason}.`,
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   async fetchScopeFile(siteId: string): Promise<{ fileName: string; buffer: Buffer }> {
     const project = await this.findBySiteId(siteId);
     if (!project) {

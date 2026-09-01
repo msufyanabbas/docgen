@@ -1,4 +1,4 @@
-import { Building2, ChevronDown, FileSignature, FileUp, Search } from 'lucide-react';
+import { Building2, ChevronDown, FileSignature, FileStack, FileUp, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ProjectSelectDialog from '../components/ProjectSelectDialog';
@@ -77,8 +77,14 @@ export default function GclListPage() {
 
         {can('gcl', 'create') && (
           <div className="flex flex-wrap gap-2" data-tour="gcl-actions">
+            {/* Bulk chooses its own projects, so it goes straight there. */}
+            <Link to="/gcl/bulk">
+              <Button variant="outline">
+                <FileStack size={15} /> Bulk GCL
+              </Button>
+            </Link>
             <Button variant="outline" onClick={() => setDialog('upload')}>
-              <FileUp size={15} /> Upload GCL
+              <FileUp size={15} /> Signed GCL
             </Button>
             <Button variant="gradient" onClick={() => setDialog('create')}>
               <FileSignature size={15} /> Create GCL

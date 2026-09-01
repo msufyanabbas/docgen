@@ -8,12 +8,18 @@ import {
   UseInterceptors,
   Get,
   Param,
+  Query,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
 import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { RequirePermission } from '../auth/permissions.guard';
 import { GclService } from './gcl.service';
 import { GclBuilderService } from './gcl-builder.service';
+import { GclBulkService } from './gcl-bulk.service';
 import { CreateFromGclDto } from '../packages/packages.dto';
 import { CreateGclDto } from './gcl.dto';
 
@@ -23,6 +29,7 @@ export class GclController {
   constructor(
     private readonly gcl: GclService,
     private readonly builder: GclBuilderService,
+    private readonly bulk: GclBulkService,
   ) {}
 
   /** Parse only — a dry run used by the upload screen to preview before committing. */
@@ -63,6 +70,86 @@ export class GclController {
    * Builds a GCL straight from the workbook the tracker already holds against
    * the project's WO request — no upload step, because the file exists upstream.
    */
+  /* ------------------------------------------------------------ bulk --- */
+
+  /**
+   * Reads the signed GCL attached to each selected project. Saves nothing.
+   *
+   * There is no upload: the documents already live on the tracker against each
+   * project's PAT sign-off.
+   */
+  @RequirePermission('gcl', 'view')
+  @Post('bulk/preview')
+  bulkPreview(@Body() body: { siteIds?: string[]; uplVersion?: string }) {
+    return this.bulk.preview(body.siteIds ?? [], body.uplVersion || 'v1');
+  }
+
+  /** Commits the batch and produces the combined documents. */
+  @RequirePermission('gcl', 'create')
+  @Post('bulk/commit')
+  bulkCommit(@Body() body: any, @CurrentUser('id') userId: string) {
+    return this.bulk.commit(body, userId);
+  }
+
+  @RequirePermission('gcl', 'view')
+  @Get('bulk')
+  listBatches(@Query('limit') limit?: string) {
+    return this.bulk.list(limit ? Number(limit) : 25);
+  }
+
+  @RequirePermission('gcl', 'view')
+  @Get('bulk/:batchId')
+  batch(@Param('batchId') batchId: string) {
+    return this.bulk.findOne(batchId);
+  }
+
+  @RequirePermission('gcl', 'edit')
+  @Post('bulk/:batchId/regenerate')
+  regenerateBatch(@Param('batchId') batchId: string) {
+    return this.bulk.generateCombined(batchId);
+  }
+
+  @RequirePermission('gcl', 'view')
+  @Get('bulk/:batchId/zip')
+  async batchZip(@Param('batchId') batchId: string, @Res({ passthrough: true }) res: Response) {
+    const { fileName, buffer } = await this.bulk.zip(batchId);
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+    });
+    return new StreamableFile(buffer);
+  }
+
+  /* ---------------------------------------------------------- single --- */
+
+  /** Reads the signed GCL attached to one project's PAT sign-off. */
+  @RequirePermission('gcl', 'view')
+  @Get('signed/:siteId/preview')
+  previewSigned(@Param('siteId') siteId: string) {
+    return this.bulk.previewOne(siteId);
+  }
+
+  /**
+   * Processes that one signed GCL: package, documents, and the certificate
+   * that follows from the acceptance — FAC without oil, PAC with.
+   */
+  @RequirePermission('gcl', 'create')
+  @Post('signed/:siteId')
+  commitSigned(
+    @Param('siteId') siteId: string,
+    @Body() body: any,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.bulk.commit(
+      {
+        ...body,
+        siteIds: [siteId],
+        acceptanceByProject: { [siteId]: body.acceptance },
+      },
+      userId,
+    );
+  }
+
   @RequirePermission('gcl', 'create')
   @Post('from-project/:siteId')
   fromProject(

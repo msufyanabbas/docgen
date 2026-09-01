@@ -7,6 +7,12 @@ import { PdfRenderer } from './generators/pdf.renderer';
 import { BoqExcelGenerator } from './generators/boq-excel.generator';
 import { WoExcelGenerator } from './generators/wo-excel.generator';
 import { fileDataUri, logos, stamp } from './generators/assets';
+
+type BatchWithPackages = {
+  id: string;
+  reference: string;
+  packages: PackageWithLines[];
+};
 import { PackageWithLines } from './documents.types';
 
 /** Appends ".SN: xxx" unless the description already mentions the serial. */
@@ -170,6 +176,7 @@ export class DocumentsService {
       WO_XLSX: `${base}_WO.xlsx`,
       WO_PDF: `${base}_WO.pdf`,
       PAC_PDF: `${base}_PAC.pdf`,
+      FAC_PDF: `${base}_FAC.pdf`,
       BUNDLE_ZIP: `${base}_Package.zip`,
     };
     return map[type];
@@ -189,6 +196,9 @@ export class DocumentsService {
         return this.pdf.render('wo', this.woView(pkg));
       case DocumentType.PAC_PDF:
         return this.pdf.render('pac', this.pacView(pkg));
+      case DocumentType.FAC_PDF:
+        // Same data, different stage — see templates/fac.hbs.
+        return this.pdf.render('fac', this.pacView(pkg));
       default:
         throw new BadRequestException(`${type} cannot be generated directly.`);
     }
@@ -202,6 +212,168 @@ export class DocumentsService {
     await this.prisma.generatedDocument.deleteMany({ where: { packageId: pkg.id, type } });
     return this.prisma.generatedDocument.create({
       data: { packageId: pkg.id, type, fileName, path: filePath, sizeBytes },
+    });
+  }
+
+  /* ==================================================================
+     Batch documents
+     ================================================================== */
+
+  /**
+   * The combined view for a batch.
+   *
+   * The Work Order takes one row per site — its template already renders a
+   * `rows` array, so a hundred sites is the same form with a hundred rows
+   * rather than a hundred forms. The BOQ concatenates every line across every
+   * site, with the site number carried onto each row so a line can still be
+   * traced back.
+   *
+   * Header fields (project, PO, contractor) come from the first package: they
+   * describe the engagement, which is the same for every site in a batch.
+   */
+  private batchView(batch: BatchWithPackages, type: DocumentType) {
+    const packages = batch.packages;
+    const first = packages[0];
+
+    const gross = packages.reduce((a, p) => a + Number(p.grossAmount), 0);
+    const discount = packages.reduce((a, p) => a + Number(p.discount), 0);
+    const foc = packages.reduce((a, p) => a + Number(p.foc), 0);
+    const net = packages.reduce((a, p) => a + Number(p.netAmount), 0);
+
+    const common = {
+      ...logos(),
+      stamp: stamp(),
+      batchReference: batch.reference,
+      contractorName: first.contractorName,
+      projectName: first.projectName,
+      subProjectName: first.subProjectName ?? '',
+      poNumber: first.poNumber ?? '',
+      currency: first.currency,
+      siteCount: packages.length,
+      grossAmount: gross,
+      discount,
+      foc,
+      netAmount: net,
+      contractorPmName: first.contractorPmName ?? '',
+      tawalPmName: first.tawalPmName ?? '',
+      issueDate: new Date().toLocaleDateString('en-GB'),
+    };
+
+    if (type === DocumentType.WO_XLSX || type === DocumentType.WO_PDF) {
+      return {
+        ...common,
+        poValue: first.poValue != null ? Number(first.poValue) : null,
+        // One row per site, padded so a short batch still looks like the form.
+        tableRows: Math.max(WO_TABLE_ROWS, packages.length),
+        rows: packages.map((p, i) => ({
+          sn: i + 1,
+          siteId: p.siteNo,
+          woNumber: p.woNumber,
+          handoverDate: p.handoverDate,
+          startDate: p.startDate,
+          endDate: p.endDate,
+          amount: Number(p.grossAmount),
+        })),
+      };
+    }
+
+    if (type === DocumentType.BOQ_XLSX || type === DocumentType.BOQ_PDF) {
+      let n = 0;
+      return {
+        ...common,
+        rows: packages.flatMap((p) =>
+          p.lines.map((l) => ({
+            no: ++n,
+            siteNo: p.siteNo,
+            itemCode: l.itemCode,
+            description: l.description,
+            unit: l.unit ?? '',
+            quantity: Number(l.quantity),
+            unitPrice: Number(l.unitPrice),
+            lineTotal: Number(l.lineTotal),
+            tagNumber: l.tagNumber ?? '',
+            serialNumber: l.serialNumber ?? '',
+          })),
+        ),
+      };
+    }
+
+    // FAC and PAC: one row per site, padded to a fixed grid.
+    const CERT_ROWS = 16;
+    const rows = packages.map((p) => ({
+      siteNo: p.siteNo,
+      region: p.region ?? '',
+      district: p.district ?? '',
+      woNumber: p.woNumber,
+    }));
+    while (rows.length < CERT_ROWS) {
+      rows.push({ siteNo: '', region: '', district: '', woNumber: '' });
+    }
+
+    return {
+      ...common,
+      signature: first.signaturePath ? fileDataUri(first.signaturePath) : null,
+      rows,
+    };
+  }
+
+  private async buildBatchOne(batch: BatchWithPackages, type: DocumentType): Promise<Buffer> {
+    const view = this.batchView(batch, type);
+
+    switch (type) {
+      case DocumentType.BOQ_XLSX:
+        return this.boqExcel.buildMany(batch.packages);
+      case DocumentType.WO_XLSX:
+        return this.woExcel.buildMany(batch.packages);
+      case DocumentType.BOQ_PDF:
+        return this.pdf.render('boq', view);
+      case DocumentType.WO_PDF:
+        return this.pdf.render('wo', view);
+      case DocumentType.PAC_PDF:
+        return this.pdf.render('pac', view);
+      case DocumentType.FAC_PDF:
+        return this.pdf.render('fac', view);
+      default:
+        throw new BadRequestException(`${type} cannot be produced for a batch.`);
+    }
+  }
+
+  /**
+   * Produces one document covering the given packages, stored against the
+   * batch rather than any single package.
+   */
+  async generateCombined(batchId: string, type: DocumentType, packageIds: string[]) {
+    const batch = await this.prisma.gclBatch.findUnique({ where: { id: batchId } });
+    if (!batch) throw new NotFoundException('Batch not found');
+
+    const packages = await this.prisma.package.findMany({
+      where: { id: { in: packageIds } },
+      include: { lines: { orderBy: { no: 'asc' } } },
+      orderBy: { siteNo: 'asc' },
+    });
+    if (!packages.length) {
+      throw new BadRequestException('No packages were given for this document.');
+    }
+
+    const data = await this.buildBatchOne({ ...batch, packages } as BatchWithPackages, type);
+
+    const ext = type.endsWith('XLSX') ? 'xlsx' : 'pdf';
+    const label = type.replace(/_(PDF|XLSX)$/, '');
+    const fileName = `${batch.reference}_${label}_${packages.length}-sites.${ext}`;
+
+    const saved = await this.storage.saveDocument(`batches/${batch.id}`, fileName, data);
+
+    // Regenerating replaces the previous copy rather than piling up versions.
+    await this.prisma.generatedDocument.deleteMany({ where: { gclBatchId: batch.id, type } });
+
+    return this.prisma.generatedDocument.create({
+      data: {
+        gclBatchId: batch.id,
+        type,
+        fileName,
+        path: saved.filePath,
+        sizeBytes: data.length,
+      },
     });
   }
 

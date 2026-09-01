@@ -75,7 +75,7 @@ export default function ProjectSelectDialog({
                 <p className="mt-0.5 text-xs text-fg-muted">
                   {stage === 'create'
                     ? 'Pick a project — its scope sheet is read straight from the tracker.'
-                    : 'Choose the project this signed GCL belongs to.'}
+                    : "Pick a project — its signed GCL is read straight from the tracker."}
                 </p>
               </div>
               <button

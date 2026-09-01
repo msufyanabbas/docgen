@@ -64,6 +64,14 @@ model Package {
   /// without re-uploading: [{ key, label, total }]
   quantityFields Json?
 
+  /// Read from the sign-off box and then confirmed by the person uploading —
+  /// see acceptance.detector.ts for why it is not trusted blind.
+  acceptance Acceptance?
+
+  /// Set when this package arrived as part of a multi-GCL upload.
+  gclBatchId String?
+  gclBatch   GclBatch? @relation(fields: [gclBatchId], references: [id], onDelete: SetNull)
+
   // --- Identity (parsed from the GCL header) ---
   woNumber       String
   siteNo         String
@@ -165,6 +173,7 @@ model PackageLine {
 
 enum DocumentType {
   GCL_PDF
+  FAC_PDF
   BOQ_XLSX
   BOQ_PDF
   WO_PDF
@@ -173,10 +182,44 @@ enum DocumentType {
   BUNDLE_ZIP
 }
 
+/// One upload of many signed GCLs.
+///
+/// Each file still becomes its own package — separate site, separate
+/// quantities, separate acceptance. What the batch adds is the combined
+/// paperwork Tawal wants: one BOQ and one Work Order covering every site, and
+/// certificates split by what was ticked.
+model GclBatch {
+  id        String @id @default(uuid())
+  reference String @unique
+  fileCount Int    @default(0)
+  siteCount Int    @default(0)
+
+  currency  String  @default("SAR")
+  netAmount Decimal @default(0) @db.Decimal(14, 2)
+
+  /// Files that could not be read, kept so failures stay visible.
+  errors Json?
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  packages  Package[]
+  documents GeneratedDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("gcl_batches")
+}
+
 model GeneratedDocument {
   id        String       @id @default(uuid())
-  packageId String
-  package   Package      @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  /// A document belongs to one package or to a whole batch, never both.
+  packageId String?
+  package   Package?  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  gclBatchId String?
+  gclBatch   GclBatch? @relation(fields: [gclBatchId], references: [id], onDelete: Cascade)
   type      DocumentType
   fileName  String
   path      String
@@ -219,6 +262,7 @@ model User {
 
   mopDocuments MopDocument[]
   mopBatches   MopBatch[]
+  gclBatches   GclBatch[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -296,6 +340,15 @@ model CategoryTemplate {
 
   @@unique([projectCategoryId, mopCategoryId])
   @@map("category_templates")
+}
+
+/// What the MSP ticked on the signed GCL, which decides the certificate:
+/// oil-free work is finally accepted (FAC), work accepted with oil is still
+/// provisional (PAC), and a rejection gets neither.
+enum Acceptance {
+  ACCEPTED
+  ACCEPTED_WITH_OIL
+  REJECTED
 }
 
 enum SiteImpact {

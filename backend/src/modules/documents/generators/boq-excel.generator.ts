@@ -31,7 +31,25 @@ const thin: Partial<ExcelJS.Borders> = {
 
 @Injectable()
 export class BoqExcelGenerator {
-  async build(pkg: PackageWithLines): Promise<Buffer> {
+  /** A single package is a batch of one. */
+  build(pkg: PackageWithLines): Promise<Buffer> {
+    return this.buildMany([pkg]);
+  }
+
+  async buildMany(packages: PackageWithLines[]): Promise<Buffer> {
+    if (!packages.length) throw new Error('A BOQ needs at least one package.');
+    const pkg = packages[0]; // header fields describe the engagement
+
+    /*
+     * Lines from every site, renumbered end to end. The site number rides on
+     * each row so a line can still be traced back — without it a combined BOQ
+     * is a list of quantities nobody can reconcile.
+     */
+    // The first column is already the Work Order number, so carrying each
+    // line's own WO is all a combined BOQ needs to stay traceable per site.
+    const allLines = packages.flatMap((p) =>
+      p.lines.map((l) => ({ ...l, __woNumber: p.woNumber, __siteNo: p.siteNo })),
+    );
     const wb = new ExcelJS.Workbook();
     wb.creator = pkg.contractorName;
     wb.created = new Date();
@@ -63,11 +81,11 @@ export class BoqExcelGenerator {
     header.getCell(5).numFmt = DATE_FMT;
 
     /* --- body --- */
-    pkg.lines.forEach((line: any, i: number) => {
+    allLines.forEach((line: any, i: number) => {
       const row = ws.getRow(i + 2);
 
       const wo = row.getCell(1);
-      wo.value = pkg.woNumber;
+      wo.value = line.__woNumber ?? pkg.woNumber;
       wo.font = { name: FONT, size: 11 };
       wo.alignment = { horizontal: 'center', vertical: 'middle' };
       wo.border = thin;
@@ -102,7 +120,7 @@ export class BoqExcelGenerator {
 
     // The reference workbook keeps a few blank bordered rows under the data.
     const blankRows = 12;
-    for (let r = pkg.lines.length + 2; r < pkg.lines.length + 2 + blankRows; r++) {
+    for (let r = allLines.length + 2; r < allLines.length + 2 + blankRows; r++) {
       const row = ws.getRow(r);
       for (let c = 1; c <= 5; c++) {
         row.getCell(c).border = thin;
@@ -110,7 +128,7 @@ export class BoqExcelGenerator {
       }
     }
 
-    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: pkg.lines.length + 1 + blankRows, column: 5 } };
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: allLines.length + 1 + blankRows, column: 5 } };
 
     return Buffer.from(await wb.xlsx.writeBuffer());
   }

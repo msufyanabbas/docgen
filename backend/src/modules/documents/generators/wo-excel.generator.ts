@@ -27,7 +27,18 @@ const thin: Partial<ExcelJS.Borders> = {
 
 @Injectable()
 export class WoExcelGenerator {
-  async build(pkg: PackageWithLines): Promise<Buffer> {
+  /**
+   * A single package is a batch of one, so both paths share this. The grid
+   * takes one row per site — the form is the same whether it covers one site or
+   * a hundred, which is what Tawal expects from a combined Work Order.
+   */
+  build(pkg: PackageWithLines): Promise<Buffer> {
+    return this.buildMany([pkg]);
+  }
+
+  async buildMany(packages: PackageWithLines[]): Promise<Buffer> {
+    if (!packages.length) throw new Error('A Work Order needs at least one package.');
+    const pkg = packages[0]; // header fields describe the engagement, not the site
     const wb = new ExcelJS.Workbook();
     wb.creator = pkg.contractorName;
     wb.created = new Date();
@@ -105,8 +116,11 @@ export class WoExcelGenerator {
     });
 
     /* --- grid body: one row per site, padded to 14 --- */
+    // Grow the grid when a batch has more sites than the form's default rows.
+    const gridRows = Math.max(TABLE_ROWS, packages.length);
+
     const first = HEAD + 1;
-    for (let i = 0; i < TABLE_ROWS; i++) {
+    for (let i = 0; i < gridRows; i++) {
       const row = ws.getRow(first + i);
       row.height = 13.5;
       for (let c = 1; c <= 7; c++) {
@@ -117,28 +131,29 @@ export class WoExcelGenerator {
       }
       row.getCell(1).value = i + 1;
 
-      if (i === 0) {
-        row.getCell(2).value = pkg.siteNo;
-        row.getCell(3).value = pkg.woNumber;
+      const site = packages[i];
+      if (site) {
+        row.getCell(2).value = site.siteNo;
+        row.getCell(3).value = site.woNumber;
         row.getCell(3).font = { name: 'Calibri', size: 8 };
-        row.getCell(4).value = pkg.handoverDate ?? null;
-        row.getCell(5).value = pkg.startDate ?? null;
-        row.getCell(6).value = pkg.endDate ?? null;
+        row.getCell(4).value = site.handoverDate ?? null;
+        row.getCell(5).value = site.startDate ?? null;
+        row.getCell(6).value = site.endDate ?? null;
         [4, 5, 6].forEach((c) => (row.getCell(c).numFmt = DATE_FMT));
-        row.getCell(7).value = Number(pkg.grossAmount);
+        row.getCell(7).value = Number(site.grossAmount);
         row.getCell(7).numFmt = MONEY_FMT;
         row.getCell(7).font = { name: 'Calibri', size: 8 };
       }
     }
 
-    const last = first + TABLE_ROWS - 1;
+    const last = first + gridRows - 1;
 
     /* --- totals: live formulas, so editing the grid updates the net --- */
     const totalRows = last + 3; // Gross
     const totals: [string, any][] = [
       ['Gross Amount:', { formula: `SUM(G${first}:G${last})` }],
-      ['Discount:', Number(pkg.discount)],
-      ['FOC:', Number(pkg.foc)],
+      ['Discount:', packages.reduce((a, p) => a + Number(p.discount), 0)],
+      ['FOC:', packages.reduce((a, p) => a + Number(p.foc), 0)],
       // Net = Gross - Discount - FOC, so editing the grid flows all the way down.
       ['Net:', { formula: `G${totalRows}-G${totalRows + 1}-G${totalRows + 2}` }],
     ];

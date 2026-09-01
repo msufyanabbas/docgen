@@ -337,7 +337,10 @@ export interface ExternalProject {
   woIssuanceStatus: string | null;
   scopeFileUrl: string | null;
   scopeFileName: string | null;
+  gclFileUrl: string | null;
+  gclFileName: string | null;
   readyForGcl: boolean;
+  readyForUpload: boolean;
 }
 
 export interface ExternalProjectsResult {
@@ -346,4 +349,60 @@ export interface ExternalProjectsResult {
   total: number;
   message?: string;
   fetchedAt: string;
+}
+
+
+/* ------------------------------------------------------- bulk GCL upload */
+
+export type Acceptance = 'ACCEPTED' | 'ACCEPTED_WITH_OIL' | 'REJECTED';
+
+export const ACCEPTANCE_LABEL: Record<Acceptance, string> = {
+  ACCEPTED: 'Accepted',
+  ACCEPTED_WITH_OIL: 'Accepted with Oil',
+  REJECTED: 'Reject',
+};
+
+/** Which certificate each acceptance leads to. */
+export const ACCEPTANCE_OUTCOME: Record<Acceptance, string> = {
+  ACCEPTED: 'FAC',
+  ACCEPTED_WITH_OIL: 'PAC',
+  REJECTED: 'none',
+};
+
+export interface BulkFilePreview {
+  siteId: string;
+  projectTitle: string;
+  fileName: string;
+  ok: boolean;
+  error?: string;
+  siteNo?: string;
+  woNumber?: string;
+  lineCount?: number;
+  total?: number;
+  acceptance?: Acceptance | null;
+  acceptanceConfidence?: 'high' | 'low' | 'none';
+  acceptanceNote?: string;
+  unpricedItems?: string[];
+}
+
+export interface BulkPreviewResult {
+  files: BulkFilePreview[];
+  readable: number;
+  failed: number;
+  needsReview: number;
+  totalValue: number;
+}
+
+export interface BulkCommitResult {
+  batchId: string;
+  reference: string;
+  committed: number;
+  failed: number;
+  /** Projects whose Work Order already had a package. */
+  skipped?: { siteId: string; reason: string }[];
+  errors: { fileName: string; message: string }[];
+  documents: { id: string; type: string; fileName: string }[];
+  accepted: number;
+  acceptedWithOil: number;
+  rejected: number;
 }

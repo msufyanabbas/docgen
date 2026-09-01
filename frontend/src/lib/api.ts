@@ -57,6 +57,15 @@ export const api = {
    * Exists because hand-rolling `fetch` for these forgets the bearer token —
    * which is exactly how /gcl/scope/create started returning 401.
    */
+  /** Several files under one field name, plus scalar fields. */
+  uploadMany: <T>(path: string, files: File[], fields: Record<string, string> = {}) => {
+    const fd = new FormData();
+    files.forEach((f) => fd.append('files', f));
+    Object.entries(fields).forEach(([k, v]) => fd.append(k, v));
+    return fetch(`${BASE}${path}`, { method: 'POST', body: fd, headers: authHeaders() })
+      .then((r) => handle<T>(r));
+  },
+
   uploadForm: <T>(path: string, form: FormData) =>
     fetch(`${BASE}${path}`, { method: 'POST', body: form, headers: authHeaders() })
       .then((r) => handle<T>(r)),

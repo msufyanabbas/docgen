@@ -39,7 +39,8 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "bcryptjs": "^2.4.3",
-    "adm-zip": "^0.5.16"
+    "adm-zip": "^0.5.16",
+    "pngjs": "^7.0.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
@@ -54,7 +55,8 @@
     "@nestjs/schematics": "^11.0.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/bcryptjs": "^2.4.6",
-    "@types/adm-zip": "^0.5.7"
+    "@types/adm-zip": "^0.5.7",
+    "@types/pngjs": "^6.0.5"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register prisma/seed.ts"
