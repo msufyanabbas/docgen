@@ -477,20 +477,40 @@ export async function parseGcl(buffer: Buffer): Promise<ParsedGcl> {
   const nameLabel = tokens.find(
     (t) => norm(t.text) === 'name' && t.y > tableBottom && t.x < 120,
   );
+
+  /*
+   * Which column a name sits in decides who it belongs to — not the order it
+   * appears in. The two names are rarely on the same baseline: a name typed
+   * into a merged cell often sits lower than the "Name:" label beside it, and
+   * reading positionally then hands the contractor's slot to the MSP's name.
+   * So the column boundary comes from the block headers.
+   */
+  const contractorHeader = tokens.find((t) => /implementation\s*contractor/i.test(t.text));
+  const mspHeader = tokens.find((t) => /msp\s*representative/i.test(t.text));
+
   if (nameLabel) {
-    // Row layout: "Name:" | <Implementation Contractor> | <MSP Representative> | checkboxes
-    const row = tokens
-      .filter(
-        (t) =>
-          Math.abs(t.y - nameLabel.y) <= 6 &&
-          t.x > nameLabel.x + nameLabel.w &&
-          t.x < 360 && // stay left of the Accepted/Reject checkbox column
-          /[A-Za-z]{2,}/.test(t.text) &&
-          !/^(accepted|reject)/i.test(t.text),
-      )
-      .sort((a, b) => a.x - b.x);
-    contractorPmName = row[0]?.text ?? null;
-    mspRepName = row[1]?.text ?? null;
+    const boundary = mspHeader
+      ? mspHeader.x - 4
+      : contractorHeader
+        ? contractorHeader.x + 200
+        : 260;
+
+    const candidates = tokens.filter(
+      (t) =>
+        // Generous band: the value may sit well below its label.
+        t.y >= nameLabel.y - 4 &&
+        t.y <= nameLabel.y + 22 &&
+        t.x > nameLabel.x + nameLabel.w &&
+        t.x < 360 && // left of the Accepted / Reject checkbox column
+        /[A-Za-z]{2,}/.test(t.text) &&
+        !/^(accepted|reject|date|signature|name)/i.test(t.text.trim()),
+    );
+
+    const nearest = (list: typeof candidates) =>
+      list.sort((a, b) => Math.abs(a.y - nameLabel.y) - Math.abs(b.y - nameLabel.y))[0]?.text ?? null;
+
+    contractorPmName = nearest(candidates.filter((t) => t.x < boundary));
+    mspRepName = nearest(candidates.filter((t) => t.x >= boundary));
   }
 
   // Anything printed below the instructions block is a hand-written remark.

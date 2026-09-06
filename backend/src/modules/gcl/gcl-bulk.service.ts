@@ -9,6 +9,7 @@ import { DocumentsService } from '../documents/documents.service';
 import { ExternalProjectsService } from '../external-projects/external-projects.service';
 import { parseGcl } from './gcl.parser';
 import { detectAcceptance, type AcceptanceResult } from './acceptance.detector';
+import { extractSignature } from './signature.extractor';
 
 /**
  * Multipart fields arrive as strings and the bulk path builds its DTO by hand,
@@ -215,6 +216,16 @@ export class GclBulkService {
         const parsed = await parseGcl(buffer);
         const stored = await this.storage.saveUpload(buffer, fileName);
 
+        /*
+         * The contractor already signed the GCL, so the same signature belongs
+         * on the PAC and FAC that follow from it — asking someone to re-sign
+         * what they have signed is busywork.
+         */
+        const signature = await extractSignature(buffer, parsed.textPositions ?? []);
+        const signatureFile = signature
+          ? await this.storage.saveUpload(signature, `${project.siteId}-signature.png`)
+          : null;
+
         const pkg = await this.packages.createFromGcl(
           parsed,
           {
@@ -231,7 +242,16 @@ export class GclBulkService {
 
         await this.prisma.package.update({
           where: { id: pkg.id },
-          data: { acceptance, gclBatchId: batch.id },
+          data: {
+            acceptance,
+            gclBatchId: batch.id,
+            ...(signatureFile
+              ? {
+                  signatureFileName: `${project.siteId}-signature.png`,
+                  signaturePath: signatureFile.filePath,
+                }
+              : {}),
+          },
         });
 
         created.push(pkg.id);
@@ -330,7 +350,20 @@ export class GclBulkService {
       { type: DocumentType.WO_XLSX, ids: all },
       { type: DocumentType.WO_PDF, ids: all },
     ];
-    if (withOil.length) jobs.push({ type: DocumentType.PAC_PDF, ids: withOil });
+
+    /*
+     * Certificates follow the sign-off:
+     *
+     *   Accepted           the site cleared provisional acceptance and has
+     *                      nothing outstanding, so it gets both the PAC and
+     *                      the FAC — the FAC references the PAC, so issuing
+     *                      one without the other leaves a dangling reference
+     *   Accepted with Oil  provisional only; the FAC waits until the oil is
+     *                      resolved
+     *   Rejected           neither
+     */
+    const provisional = [...withOil, ...clean];
+    if (provisional.length) jobs.push({ type: DocumentType.PAC_PDF, ids: provisional });
     if (clean.length) jobs.push({ type: DocumentType.FAC_PDF, ids: clean });
 
     if (rejected.length) {
@@ -354,6 +387,8 @@ export class GclBulkService {
       acceptedWithOil: withOil.length,
       accepted: clean.length,
       rejected: rejected.length,
+      /** Everything that reached provisional acceptance. */
+      onPac: provisional.length,
     };
   }
 

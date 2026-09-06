@@ -362,9 +362,15 @@ export const ACCEPTANCE_LABEL: Record<Acceptance, string> = {
   REJECTED: 'Reject',
 };
 
-/** Which certificate each acceptance leads to. */
+/**
+ * Which certificates each acceptance leads to.
+ *
+ * Accepted work cleared provisional acceptance and has nothing outstanding, so
+ * it gets both — the FAC references the PAC, so issuing one without the other
+ * leaves a dangling reference.
+ */
 export const ACCEPTANCE_OUTCOME: Record<Acceptance, string> = {
-  ACCEPTED: 'FAC',
+  ACCEPTED: 'PAC + FAC',
   ACCEPTED_WITH_OIL: 'PAC',
   REJECTED: 'none',
 };
@@ -405,4 +411,6 @@ export interface BulkCommitResult {
   accepted: number;
   acceptedWithOil: number;
   rejected: number;
+  /** Sites that reached provisional acceptance, so appear on the PAC. */
+  onPac?: number;
 }

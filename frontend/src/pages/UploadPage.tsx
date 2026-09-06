@@ -95,7 +95,7 @@ export default function UploadPage() {
             }
           />
           <div className="flex flex-wrap gap-2 px-4 py-4 sm:px-5">
-            {result.accepted > 0 && <Badge tone="success">FAC issued</Badge>}
+            {result.accepted > 0 && <Badge tone="success">PAC and FAC issued</Badge>}
             {result.acceptedWithOil > 0 && <Badge tone="warn">PAC issued</Badge>}
             {result.rejected > 0 && <Badge tone="danger">rejected — no certificate</Badge>}
           </div>

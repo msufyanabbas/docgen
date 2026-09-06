@@ -48,12 +48,16 @@
   .sign td { height: 13pt; }
   .sign .title { height: 15pt; background: #f2f2f2; font-weight: bold; text-align: center; }
   .sign img { height: 26pt; }
+  /* Stamp sits beside the signature, clear of it — on the GCL they overlap,
+     but on a certificate both need to read cleanly. */
+  .sign .stamp { position: absolute; left: 132pt; top: 1pt; height: 30pt; opacity: 0.92; }
+  .sign .sig { position: absolute; left: 14pt; top: 3pt; height: 26pt; }
 </style>
 </head>
 <body>
   <div class="abs banner" style="top: 18pt;">This Content is Public</div>
 
-  <div class="abs logo"><img src="{{tawalLogo}}" alt="TAWAL" /></div>
+  <div class="abs logo">{{#if logoTawal}}<img src="{{logoTawal}}" alt="TAWAL" />{{/if}}</div>
 
   <div class="abs sheet">
     <table class="head">
@@ -140,7 +144,10 @@
         <td>Name :</td>
       </tr>
       <tr>
-        <td style="height: 32pt;">{{#if signature}}<img src="{{signature}}" alt="" />{{/if}}</td>
+        <td style="height: 34pt; position: relative;">
+          {{#if signature}}<img class="sig" src="{{signature}}" alt="" />{{/if}}
+          {{#if stamp}}<img class="stamp" src="{{stamp}}" alt="" />{{/if}}
+        </td>
         <td>Sign :</td>
       </tr>
       <tr>

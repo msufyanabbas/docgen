@@ -82,6 +82,13 @@
     background: #D9D9D9; border: 1pt solid #000; height: 16.7pt;
     text-align: center; font-weight: bold; font-size: 5.2pt;
   }
+  /* The contractor already signed the GCL this certificate follows from, so
+     the same signature and stamp are carried across — spaced apart so both
+     read cleanly rather than overlapping as they do on the GCL. */
+  .sigb .sigcell { position: relative; height: 30pt; }
+  .sigb .sig { position: absolute; left: 10pt; top: 2pt; height: 22pt; }
+  .sigb .stamp { position: absolute; left: 118pt; top: 0; height: 26pt; opacity: .92; }
+
   .sigb { left: 50.9pt; top: 483.4pt; width: 465.3pt; }
   .sigb td {
     border-bottom: .5pt solid #000; border-left: 1pt solid #000; border-right: 1pt solid #000;
@@ -189,7 +196,10 @@
       <td>ID: {{tawalPmId}}</td>
     </tr>
     <tr>
-      <td></td>
+      <td class="sigcell">
+        {{#if signature}}<img class="sig" src="{{signature}}" alt="" />{{/if}}
+        {{#if stamp}}<img class="stamp" src="{{stamp}}" alt="" />{{/if}}
+      </td>
       <td>Sign :</td>
     </tr>
     <tr>

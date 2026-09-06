@@ -8,6 +8,16 @@ import { BoqExcelGenerator } from './generators/boq-excel.generator';
 import { WoExcelGenerator } from './generators/wo-excel.generator';
 import { fileDataUri, logos, stamp } from './generators/assets';
 
+/** Strips anything that would be awkward in a filename, keeping it readable. */
+const fileSafe = (v: string | null | undefined) =>
+  String(v ?? '').trim().replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+
+/** [Site]_[WorkOrder] — the pair Tawal reconciles documents by. */
+function docBase(siteNo?: string | null, woNumber?: string | null): string {
+  const parts = [fileSafe(siteNo), fileSafe(woNumber)].filter(Boolean);
+  return parts.length ? parts.join('_') : 'document';
+}
+
 type BatchWithPackages = {
   id: string;
   reference: string;
@@ -145,6 +155,9 @@ export class DocumentsService {
   private pacView(pkg: PackageWithLines) {
     return {
       ...logos(),
+      // Carried from the GCL this certificate follows from.
+      stamp: stamp(),
+      signature: pkg.signaturePath ? fileDataUri(pkg.signaturePath) : null,
       projectName: pkg.projectName,
       contractorName: pkg.contractorName,
       poNumber: pkg.poNumber ?? '',
@@ -168,11 +181,13 @@ export class DocumentsService {
   /* ----------------------------------------------------------- generation */
 
   private fileName(pkg: PackageWithLines, type: DocumentType) {
-    const base = pkg.siteNo || pkg.woNumber;
+    // [Site]_[WorkOrder]_[Type], e.g. ZMS009_002312_WO.pdf — the two identifiers
+    // Tawal reconciles by, in that order.
+    const base = docBase(pkg.siteNo, pkg.woNumber);
     const map: Record<DocumentType, string> = {
       GCL_PDF: `${base}_GCL.pdf`,
-      BOQ_XLSX: `${base}_As-Built_BOQ.xlsx`,
-      BOQ_PDF: `${base}_As-Built_BOQ.pdf`,
+      BOQ_XLSX: `${base}_AsBuilt_BOQ.xlsx`,
+      BOQ_PDF: `${base}_AsBuilt_BOQ.pdf`,
       WO_XLSX: `${base}_WO.xlsx`,
       WO_PDF: `${base}_WO.pdf`,
       PAC_PDF: `${base}_PAC.pdf`,
@@ -312,6 +327,9 @@ export class DocumentsService {
 
     return {
       ...common,
+      // The certificate is signed by the contractor's project manager, not the
+      // MSP representative — the MSP signs the GCL, not what follows from it.
+      contractorPmName: (first.contractorPmName ?? '').toUpperCase(),
       signature: first.signaturePath ? fileDataUri(first.signaturePath) : null,
       rows,
     };
@@ -358,8 +376,20 @@ export class DocumentsService {
     const data = await this.buildBatchOne({ ...batch, packages } as BatchWithPackages, type);
 
     const ext = type.endsWith('XLSX') ? 'xlsx' : 'pdf';
-    const label = type.replace(/_(PDF|XLSX)$/, '');
-    const fileName = `${batch.reference}_${label}_${packages.length}-sites.${ext}`;
+    const label = type === DocumentType.BOQ_XLSX || type === DocumentType.BOQ_PDF
+      ? 'AsBuilt_BOQ'
+      : type.replace(/_(PDF|XLSX)$/, '');
+
+    /*
+     * A single-site batch is named exactly like a standalone document; only a
+     * genuinely multi-site one carries the site count, because there is no one
+     * site or work order to name it after.
+     */
+    const first = packages[0];
+    const fileName =
+      packages.length === 1
+        ? `${docBase(first.siteNo, first.woNumber)}_${label}.${ext}`
+        : `${docBase(first.siteNo, first.woNumber)}_and-${packages.length - 1}-more_${label}.${ext}`;
 
     const saved = await this.storage.saveDocument(`batches/${batch.id}`, fileName, data);
 

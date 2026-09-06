@@ -135,8 +135,8 @@ export default function BulkGclPage() {
           />
 
           <div className="flex flex-wrap gap-2 px-4 py-4 sm:px-5">
-            <Badge tone="success">{result.accepted} → FAC</Badge>
-            <Badge tone="warn">{result.acceptedWithOil} → PAC</Badge>
+            <Badge tone="success">{result.accepted} → PAC + FAC</Badge>
+            <Badge tone="warn">{result.acceptedWithOil} → PAC only</Badge>
             {result.rejected > 0 && <Badge tone="danger">{result.rejected} rejected</Badge>}
             {result.failed > 0 && <Badge tone="danger">{result.failed} failed</Badge>}
             {(result.skipped?.length ?? 0) > 0 && (
@@ -160,8 +160,9 @@ export default function BulkGclPage() {
               ))}
             </div>
             <p className="mt-2 text-[11px] text-fg-subtle">
-              One As-Built BOQ and one Work Order across every site; FAC for the sites accepted
-              without oil, PAC for those with.
+              One As-Built BOQ and one Work Order across every site. Every site that reached
+              provisional acceptance is on the PAC; those with no outstanding oil are also on
+              the FAC.
             </p>
           </div>
 
@@ -480,7 +481,7 @@ export default function BulkGclPage() {
                       </span>
                     ) : (
                       <>
-                        {split.ACCEPTED} → FAC · {split.ACCEPTED_WITH_OIL} → PAC
+                        {split.ACCEPTED} → PAC + FAC · {split.ACCEPTED_WITH_OIL} → PAC
                         {split.REJECTED > 0 && ` · ${split.REJECTED} rejected`} ·{' '}
                         {money(preview.totalValue)}
                       </>
