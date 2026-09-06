@@ -9,3 +9,6 @@ storage/
 
 # Deployment credentials — server host, SSH key path, git token.
 deploy.config
+
+EXAMPLE_PAC.xlsx
+EXAMPLE_FAC.xlsx

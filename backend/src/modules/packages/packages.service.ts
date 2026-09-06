@@ -55,7 +55,24 @@ export class PackagesService {
       );
     }
 
-    const woNumber = (dto.woNumber ?? parsed.woNumber)!.trim();
+    // The tracker owns the project, so its identity is resolved before anything
+    // is derived from the document.
+    const tracked = await this.externalProjects.findBySiteId(dto.externalSiteId);
+    if (!tracked) {
+      throw new BadRequestException(
+        `Project "${dto.externalSiteId}" was not found in the tracker. ` +
+          `It may have changed status, or the projects service may be unreachable.`,
+      );
+    }
+    if (tracked.patStatus?.toLowerCase() !== 'approved') {
+      throw new BadRequestException(
+        `Project "${tracked.siteId}" does not have an approved PAT, so a signed GCL cannot be uploaded against it.`,
+      );
+    }
+
+    // The Work Order is issued by the tracker, so that number wins over
+    // whatever is printed on the document.
+    const woNumber = (dto.woNumber ?? tracked?.woNumber ?? parsed.woNumber)!.trim();
 
     const existing = await this.prisma.package.findUnique({ where: { woNumber } });
     if (existing && !dto.overwrite) {
@@ -92,26 +109,17 @@ export class PackagesService {
 
     // The project is required, so a lookup failure is fatal here — better to
     // refuse than to create a package that can never be traced back.
-    const tracked = await this.externalProjects.findBySiteId(dto.externalSiteId);
-    if (!tracked) {
-      throw new BadRequestException(
-        `Project "${dto.externalSiteId}" was not found in the tracker. ` +
-          `It may have changed status, or the projects service may be unreachable.`,
-      );
-    }
-    if (tracked.patStatus?.toLowerCase() !== 'approved') {
-      throw new BadRequestException(
-        `Project "${tracked.siteId}" does not have an approved PAT, so a signed GCL cannot be uploaded against it.`,
-      );
-    }
 
     const pkg = await this.prisma.package.create({
       data: {
         woNumber,
-        siteNo: dto.siteNo ?? parsed.siteNo ?? 'UNKNOWN',
+        // The tracker is authoritative for who the job belongs to; the GCL is
+        // authoritative for what was done. So identity comes from the project
+        // where it has it, and falls back to the document.
+        siteNo: dto.siteNo ?? tracked?.siteId ?? parsed.siteNo ?? 'UNKNOWN',
         tawalSiteId: parsed.tawalSiteId,
-        region: this.expandRegion(parsed.region),
-        district: parsed.district,
+        region: dto.region ?? tracked?.region ?? this.expandRegion(parsed.region),
+        district: dto.district ?? tracked?.city ?? parsed.district,
         projectName: (parsed.projectName || defaults.projectName).toUpperCase(),
         contractorName: dto.contractorName ?? defaults.contractorName,
         poNumber: parsed.poNumber,

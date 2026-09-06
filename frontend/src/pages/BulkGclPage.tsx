@@ -34,7 +34,7 @@ export default function BulkGclPage() {
   const [result, setResult] = useState<BulkCommitResult | null>(null);
   const [busy, setBusy] = useState<'read' | 'commit' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ serviceDate: '', startDate: '', notes: '' });
+  const [form, setForm] = useState({ serviceDate: '', startDate: '', notes: '', contractorPmId: '' });
   const [replaceExisting, setReplaceExisting] = useState(false);
 
   useEffect(() => {
@@ -85,6 +85,7 @@ export default function BulkGclPage() {
       const r = await api.send<BulkCommitResult>('/gcl/bulk/commit', 'POST', {
         siteIds: selected,
         acceptanceByProject: acceptance,
+        contractorPmId: form.contractorPmId.trim(),
         onDuplicate: replaceExisting ? 'overwrite' : 'skip',
         ...(form.serviceDate ? { serviceDate: form.serviceDate } : {}),
         ...(form.startDate ? { startDate: form.startDate } : {}),
@@ -154,8 +155,17 @@ export default function BulkGclPage() {
                   size="sm"
                   onClick={() => api.download(`/documents/${d.id}/download`, d.fileName)}
                 >
-                  <Download size={13} /> {d.type.replace(/_(PDF|XLSX)$/, '')}{' '}
-                  <span className="text-fg-subtle">{d.type.endsWith('XLSX') ? 'xlsx' : 'pdf'}</span>
+                  <Download size={13} /> {d.type.replace(/_(PDF|XLSX)$/, '')}
+                  {/* Which file you get matters at the moment you click. */}
+                  <span
+                    className={`ml-1 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                      d.type.endsWith('XLSX')
+                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                        : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
+                    }`}
+                  >
+                    {d.type.endsWith('XLSX') ? 'XLSX' : 'PDF'}
+                  </span>
                 </Button>
               ))}
             </div>
@@ -427,6 +437,16 @@ export default function BulkGclPage() {
               <Card>
                 <CardHead title="4 · Applied to every site" />
                 <div className="grid gap-4 px-4 py-5 sm:grid-cols-3 sm:px-5">
+                  <Field
+                    label="Contractor PM ID"
+                    hint="Printed on the PAC beside the name — required"
+                  >
+                    <Input
+                      placeholder="2328338328"
+                      value={form.contractorPmId}
+                      onChange={(e) => setForm({ ...form, contractorPmId: e.target.value })}
+                    />
+                  </Field>
                   <Field label="Handover date">
                     <Input
                       type="date"
@@ -475,7 +495,9 @@ export default function BulkGclPage() {
               <div className="sticky bottom-0 -mx-4 border-t border-line/60 bg-canvas/85 px-4 py-3 backdrop-blur-md sm:-mx-5 sm:px-5 lg:-mx-8 lg:px-8">
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="min-w-0 flex-1 text-xs text-fg-subtle">
-                    {unconfirmed.length > 0 ? (
+                    {!form.contractorPmId.trim() ? (
+                      <span className="text-amber-500">A contractor PM ID is required</span>
+                    ) : unconfirmed.length > 0 ? (
                       <span className="text-amber-500">
                         {unconfirmed.length} project(s) still need an acceptance
                       </span>
@@ -490,7 +512,11 @@ export default function BulkGclPage() {
                   <Button
                     variant="gradient"
                     onClick={commit}
-                    disabled={readable.length === 0 || unconfirmed.length > 0}
+                    disabled={
+                      readable.length === 0 ||
+                      unconfirmed.length > 0 ||
+                      !form.contractorPmId.trim()
+                    }
                     loading={busy === 'commit'}
                   >
                     <Layers size={15} /> Create {readable.length} package(s)

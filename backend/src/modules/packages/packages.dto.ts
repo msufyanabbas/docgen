@@ -15,6 +15,8 @@ import {
 import { PackageStatus, QuantitySource } from '@prisma/client';
 
 export class CreateFromGclDto {
+  @IsOptional() @IsString() region?: string;
+  @IsOptional() @IsString() district?: string;
   /** Site ID of the tracker project this GCL belongs to. Required — a GCL
    *  without a project cannot be reconciled against the tracker later. */
   @IsString({ message: 'Select a project before uploading a GCL' })

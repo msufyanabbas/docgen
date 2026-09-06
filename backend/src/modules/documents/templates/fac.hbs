@@ -48,10 +48,8 @@
   .sign td { height: 13pt; }
   .sign .title { height: 15pt; background: #f2f2f2; font-weight: bold; text-align: center; }
   .sign img { height: 26pt; }
-  /* Stamp sits beside the signature, clear of it — on the GCL they overlap,
-     but on a certificate both need to read cleanly. */
-  .sign .stamp { position: absolute; left: 132pt; top: 1pt; height: 30pt; opacity: 0.92; }
-  .sign .sig { position: absolute; left: 14pt; top: 3pt; height: 26pt; }
+  .sign .sigcell { position: relative; height: 34pt; }
+  .sign .sig { position: absolute; left: 34pt; top: 3pt; height: 26pt; }
 </style>
 </head>
 <body>
@@ -62,14 +60,14 @@
   <div class="abs sheet">
     <table class="head">
       <tr>
-        <td style="width: 300pt;">Final Acceptance Certificate</td>
+        <td style="width: 57%;">Final Acceptance Certificate</td>
         <td class="ar">شهادة استلام نهائية</td>
       </tr>
     </table>
 
     <table class="blurb">
       <tr>
-        <td style="width: 300pt;">
+        <td style="width: 57%;">
           According to the Agreement concluded between the undersigned and upon the supplier's
           delivery of all works with the repair of all defects , malfunctions and errors contained
           in the Preliminary Acceptance Certificate ( PAC ) for the site(s), TAWAL confirms that
@@ -136,7 +134,7 @@
 
     <table class="sign">
       <tr>
-        <td class="title" style="width: 300pt;">Contractor Project Manager</td>
+        <td class="title" style="width: 57%;">Contractor Project Manager</td>
         <td class="title" style="text-align: left; padding-left: 4pt;">TAWAL Project Manager</td>
       </tr>
       <tr>
@@ -144,14 +142,16 @@
         <td>Name :</td>
       </tr>
       <tr>
-        <td style="height: 34pt; position: relative;">
+        <td class="sigcell">
+          Sign :
+          {{!-- Signature only; the stamp belongs on the GCL. --}}
           {{#if signature}}<img class="sig" src="{{signature}}" alt="" />{{/if}}
-          {{#if stamp}}<img class="stamp" src="{{stamp}}" alt="" />{{/if}}
         </td>
         <td>Sign :</td>
       </tr>
       <tr>
-        <td>Date : {{issueDate}}</td>
+        {{!-- The date the contractor signed the GCL, not the day this was run. --}}
+        <td>Date : {{#if gclDate}}{{slashDate gclDate}}{{/if}}</td>
         <td>Date :</td>
       </tr>
     </table>

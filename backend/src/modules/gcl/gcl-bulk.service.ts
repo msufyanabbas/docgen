@@ -179,6 +179,8 @@ export class GclBulkService {
       serviceDate?: string;
       startDate?: string;
       notes?: string;
+      /** Printed on the PAC beside the contractor PM's name. */
+      contractorPmId?: string;
       /**
        * What to do when a package for the same Work Order already exists.
        * 'skip' is the default: selecting fifty projects and having the whole
@@ -235,6 +237,7 @@ export class GclBulkService {
             serviceDate: toDate(dto.serviceDate),
             startDate: toDate(dto.startDate),
             notes: dto.notes || undefined,
+            contractorPmId: dto.contractorPmId || undefined,
             overwrite,
           } as any,
           { fileName, filePath: stored.filePath },
@@ -363,8 +366,14 @@ export class GclBulkService {
      *   Rejected           neither
      */
     const provisional = [...withOil, ...clean];
-    if (provisional.length) jobs.push({ type: DocumentType.PAC_PDF, ids: provisional });
-    if (clean.length) jobs.push({ type: DocumentType.FAC_PDF, ids: clean });
+    if (provisional.length) {
+      jobs.push({ type: DocumentType.PAC_PDF, ids: provisional });
+      jobs.push({ type: DocumentType.PAC_XLSX, ids: provisional });
+    }
+    if (clean.length) {
+      jobs.push({ type: DocumentType.FAC_PDF, ids: clean });
+      jobs.push({ type: DocumentType.FAC_XLSX, ids: clean });
+    }
 
     if (rejected.length) {
       this.logger.log(

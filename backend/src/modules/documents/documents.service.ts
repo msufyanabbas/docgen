@@ -7,15 +7,19 @@ import { PdfRenderer } from './generators/pdf.renderer';
 import { BoqExcelGenerator } from './generators/boq-excel.generator';
 import { WoExcelGenerator } from './generators/wo-excel.generator';
 import { fileDataUri, logos, stamp } from './generators/assets';
+import { CertExcelGenerator } from './generators/cert-excel.generator';
 
 /** Strips anything that would be awkward in a filename, keeping it readable. */
 const fileSafe = (v: string | null | undefined) =>
   String(v ?? '').trim().replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
 
-/** [Site]_[WorkOrder] — the pair Tawal reconciles documents by. */
-function docBase(siteNo?: string | null, woNumber?: string | null): string {
-  const parts = [fileSafe(siteNo), fileSafe(woNumber)].filter(Boolean);
-  return parts.length ? parts.join('_') : 'document';
+/** Reads a stored file, or null if it has gone missing. */
+function readFileSafe(p: string): Buffer | null {
+  try {
+    return require('fs').readFileSync(p);
+  } catch {
+    return null;
+  }
 }
 
 type BatchWithPackages = {
@@ -35,7 +39,9 @@ function withSerial(description: string, serial?: string | null): string {
 }
 
 const WO_TABLE_ROWS = 14; // Tawal's Work Order grid is a fixed 14-row form
-const PAC_TABLE_ROWS = 14;
+// See the note on CERT_ROWS: the grid holds 13 without running into the
+// signature block below it.
+const PAC_TABLE_ROWS = 13;
 
 @Injectable()
 export class DocumentsService {
@@ -45,6 +51,7 @@ export class DocumentsService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly pdf: PdfRenderer,
+    private readonly certExcel: CertExcelGenerator,
     private readonly boqExcel: BoqExcelGenerator,
     private readonly woExcel: WoExcelGenerator,
   ) {}
@@ -163,9 +170,12 @@ export class DocumentsService {
       poNumber: pkg.poNumber ?? '',
       contractorPmName: (pkg.contractorPmName ?? '').toUpperCase(),
       contractorPmId: pkg.contractorPmId ?? '',
+      gclDate: pkg.gclDate,
       tawalPmName: pkg.tawalPmName ?? '',
       tawalPmId: pkg.tawalPmId ?? '',
-      pacDate: pkg.endDate ?? pkg.gclDate,
+      // The date the contractor signed the GCL — the certificate follows from
+      // that signature, so it carries that date rather than today's.
+      pacDate: pkg.gclDate ?? pkg.endDate,
       tableRows: PAC_TABLE_ROWS,
       rows: [
         {
@@ -181,9 +191,9 @@ export class DocumentsService {
   /* ----------------------------------------------------------- generation */
 
   private fileName(pkg: PackageWithLines, type: DocumentType) {
-    // [Site]_[WorkOrder]_[Type], e.g. ZMS009_002312_WO.pdf — the two identifiers
-    // Tawal reconciles by, in that order.
-    const base = docBase(pkg.siteNo, pkg.woNumber);
+    // [Site]_[Type], e.g. ZMS009_WO.pdf. The Work Order number is long enough
+    // to make a filename unreadable, and the site already identifies the job.
+    const base = fileSafe(pkg.siteNo) || fileSafe(pkg.woNumber) || 'document';
     const map: Record<DocumentType, string> = {
       GCL_PDF: `${base}_GCL.pdf`,
       BOQ_XLSX: `${base}_AsBuilt_BOQ.xlsx`,
@@ -192,6 +202,8 @@ export class DocumentsService {
       WO_PDF: `${base}_WO.pdf`,
       PAC_PDF: `${base}_PAC.pdf`,
       FAC_PDF: `${base}_FAC.pdf`,
+      PAC_XLSX: `${base}_PAC.xlsx`,
+      FAC_XLSX: `${base}_FAC.xlsx`,
       BUNDLE_ZIP: `${base}_Package.zip`,
     };
     return map[type];
@@ -214,6 +226,10 @@ export class DocumentsService {
       case DocumentType.FAC_PDF:
         // Same data, different stage — see templates/fac.hbs.
         return this.pdf.render('fac', this.pacView(pkg));
+      case DocumentType.PAC_XLSX:
+        return this.certExcel.build('PAC', this.singleCertView(pkg));
+      case DocumentType.FAC_XLSX:
+        return this.certExcel.build('FAC', this.singleCertView(pkg));
       default:
         throw new BadRequestException(`${type} cannot be generated directly.`);
     }
@@ -296,9 +312,22 @@ export class DocumentsService {
       let n = 0;
       return {
         ...common,
+        /*
+         * The BOQ header identifies the job. On a multi-site batch there is no
+         * single site, so the first one names it and the per-row WO number
+         * keeps every line traceable.
+         */
+        siteNo: first.siteNo,
+        region: first.region ?? '',
+        district: first.district ?? '',
+        woNumber: first.woNumber,
+        notes: first.notes ?? '',
         rows: packages.flatMap((p) =>
           p.lines.map((l) => ({
             no: ++n,
+            // Each line carries its own Work Order, which is what keeps a
+            // combined BOQ traceable back to a site.
+            woNumber: p.woNumber,
             siteNo: p.siteNo,
             itemCode: l.itemCode,
             description: l.description,
@@ -313,25 +342,90 @@ export class DocumentsService {
       };
     }
 
-    // FAC and PAC: one row per site, padded to a fixed grid.
-    const CERT_ROWS = 16;
+    /*
+     * The certificate grids are fixed geometry: the PAC's runs from 242.5pt to
+     * the signature block at 466.7pt, which is 14 rows of 14.97pt plus a
+     * header. Padding beyond that pushes rows over the signatures — which is
+     * what produced the stray row and the column rules through the
+     * Contractor Project Manager block.
+     */
+    /*
+     * The grid runs from 242.5pt to the signature header at 466.7pt — 224.2pt.
+     * After the 13.7pt column header that leaves room for 13 rows of 14.97pt
+     * once collapsed borders are counted. A fourteenth prints underneath the
+     * Contractor Project Manager block, which is what showed as stray rules
+     * through it.
+     */
+    const CERT_ROWS = 13;
+    // Both certificate templates read `siteId`; `siteNo` is the column name on
+    // the package. Mismatching the two is what left the PAC's Site ID blank.
     const rows = packages.map((p) => ({
+      siteId: p.siteNo,
       siteNo: p.siteNo,
       region: p.region ?? '',
       district: p.district ?? '',
       woNumber: p.woNumber,
     }));
     while (rows.length < CERT_ROWS) {
-      rows.push({ siteNo: '', region: '', district: '', woNumber: '' });
+      rows.push({ siteId: '', siteNo: '', region: '', district: '', woNumber: '' });
     }
 
     return {
       ...common,
+      // The template pads with {{#padRows rows tableRows}}, so it needs to know
+      // how many the grid holds.
+      tableRows: CERT_ROWS,
       // The certificate is signed by the contractor's project manager, not the
       // MSP representative — the MSP signs the GCL, not what follows from it.
       contractorPmName: (first.contractorPmName ?? '').toUpperCase(),
+      contractorPmId: first.contractorPmId ?? '',
       signature: first.signaturePath ? fileDataUri(first.signaturePath) : null,
+      // Dated from the GCL the certificate follows from.
+      gclDate: first.gclDate,
+      pacDate: first.gclDate ?? first.endDate,
       rows,
+    };
+  }
+
+  /** Reshapes the certificate view for the workbook generator. */
+  private certView(batch: BatchWithPackages, view: any): any {
+    const first = batch.packages[0];
+    return {
+      projectName: view.projectName,
+      subProjectName: view.subProjectName,
+      contractorName: view.contractorName,
+      poNumber: view.poNumber,
+      contractorPmName: view.contractorPmName,
+      contractorPmId: view.contractorPmId,
+      signedDate: first.gclDate ? new Date(first.gclDate).toLocaleDateString('en-GB') : '',
+      rows: batch.packages.map((p) => ({
+        siteNo: p.siteNo,
+        region: p.region ?? '',
+        district: p.district ?? '',
+        woNumber: p.woNumber,
+      })),
+      signature: first.signaturePath ? readFileSafe(first.signaturePath) : null,
+    };
+  }
+
+  private singleCertView(pkg: PackageWithLines): any {
+    return {
+      projectName: pkg.projectName,
+      subProjectName: pkg.subProjectName ?? '',
+      contractorName: pkg.contractorName,
+      poNumber: pkg.poNumber ?? '',
+      contractorPmName: (pkg.contractorPmName ?? '').toUpperCase(),
+      contractorPmId: pkg.contractorPmId ?? '',
+      signedDate: pkg.gclDate ? new Date(pkg.gclDate).toLocaleDateString('en-GB') : '',
+      rows: [
+        {
+          siteNo: pkg.siteNo,
+          region: pkg.region ?? '',
+          district: pkg.district ?? '',
+          woNumber: pkg.woNumber,
+        },
+      ],
+      signature: pkg.signaturePath ? readFileSafe(pkg.signaturePath) : null,
     };
   }
 
@@ -351,6 +445,10 @@ export class DocumentsService {
         return this.pdf.render('pac', view);
       case DocumentType.FAC_PDF:
         return this.pdf.render('fac', view);
+      case DocumentType.PAC_XLSX:
+        return this.certExcel.build('PAC', this.certView(batch, view));
+      case DocumentType.FAC_XLSX:
+        return this.certExcel.build('FAC', this.certView(batch, view));
       default:
         throw new BadRequestException(`${type} cannot be produced for a batch.`);
     }
@@ -386,10 +484,11 @@ export class DocumentsService {
      * site or work order to name it after.
      */
     const first = packages[0];
+    const base = fileSafe(first.siteNo) || fileSafe(first.woNumber) || 'document';
     const fileName =
       packages.length === 1
-        ? `${docBase(first.siteNo, first.woNumber)}_${label}.${ext}`
-        : `${docBase(first.siteNo, first.woNumber)}_and-${packages.length - 1}-more_${label}.${ext}`;
+        ? `${base}_${label}.${ext}`
+        : `${base}_and-${packages.length - 1}-more_${label}.${ext}`;
 
     const saved = await this.storage.saveDocument(`batches/${batch.id}`, fileName, data);
 

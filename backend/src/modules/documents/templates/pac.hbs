@@ -81,18 +81,24 @@
   .sigh td {
     background: #D9D9D9; border: 1pt solid #000; height: 16.7pt;
     text-align: center; font-weight: bold; font-size: 5.2pt;
+    /* Matches .sigb so the two blocks line up column for column. */
+    width: 50%;
   }
   /* The contractor already signed the GCL this certificate follows from, so
-     the same signature and stamp are carried across — spaced apart so both
-     read cleanly rather than overlapping as they do on the GCL. */
+     that signature is carried across. */
   .sigb .sigcell { position: relative; height: 30pt; }
-  .sigb .sig { position: absolute; left: 10pt; top: 2pt; height: 22pt; }
-  .sigb .stamp { position: absolute; left: 118pt; top: 0; height: 26pt; opacity: .92; }
+  .sigb .sig { position: absolute; left: 34pt; top: 2pt; height: 22pt; }
 
   .sigb { left: 50.9pt; top: 483.4pt; width: 465.3pt; }
   .sigb td {
     border-bottom: .5pt solid #000; border-left: 1pt solid #000; border-right: 1pt solid #000;
-    height: 16.88pt; font-size: 5.2pt; padding-left: 1.2pt; width: 242pt;
+    height: 16.88pt; font-size: 5.2pt; padding-left: 1.2pt;
+    /*
+     * Half each. Two cells fixed at 242pt came to 484pt in a 465.3pt table, so
+     * the right-hand one hung 18.7pt past the edge — the stray box beside the
+     * Tawal column.
+     */
+    width: 50%;
   }
   .sigb tr:last-child td { border-bottom: 1pt solid #000; }
 </style>
@@ -181,24 +187,26 @@
 
   <table class="abs sigh">
     <tr>
-      <td style="width:242pt">Contractor Project Manager</td>
+      <td>Contractor Project Manager</td>
       <td>Tawal Project Manager</td>
     </tr>
   </table>
 
   <table class="abs sigb">
+    {{!-- Same four rows as the Tawal side: Name, ID, Sign, Date. --}}
     <tr>
-      <td>{{contractorPmName}}</td>
+      <td>Name : {{contractorPmName}}</td>
       <td>Name : {{tawalPmName}}</td>
     </tr>
     <tr>
-      <td>{{#if contractorPmId}}ID:{{contractorPmId}}{{/if}}</td>
+      <td>ID: {{contractorPmId}}</td>
       <td>ID: {{tawalPmId}}</td>
     </tr>
     <tr>
       <td class="sigcell">
+        Sign :
+        {{!-- Signature only. The stamp belongs on the GCL, not the certificate. --}}
         {{#if signature}}<img class="sig" src="{{signature}}" alt="" />{{/if}}
-        {{#if stamp}}<img class="stamp" src="{{stamp}}" alt="" />{{/if}}
       </td>
       <td>Sign :</td>
     </tr>
