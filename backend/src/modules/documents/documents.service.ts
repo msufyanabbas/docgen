@@ -170,12 +170,19 @@ export class DocumentsService {
       poNumber: pkg.poNumber ?? '',
       contractorPmName: (pkg.contractorPmName ?? '').toUpperCase(),
       contractorPmId: pkg.contractorPmId ?? '',
-      gclDate: pkg.gclDate,
+      gclDate: pkg.contractorSignDate,
       tawalPmName: pkg.tawalPmName ?? '',
       tawalPmId: pkg.tawalPmId ?? '',
-      // The date the contractor signed the GCL — the certificate follows from
-      // that signature, so it carries that date rather than today's.
-      pacDate: pkg.gclDate ?? pkg.endDate,
+      /*
+       * The date beside the contractor's signature on the GCL — not the header
+       * date, and not today's.
+       *
+       * Deliberately no fallback: if the signing date wasn't read, the field
+       * prints blank. Substituting the header date produces a plausible-looking
+       * wrong date on a document Tawal relies on, which is worse than a gap
+       * somebody can see and fill in.
+       */
+      pacDate: pkg.contractorSignDate,
       tableRows: PAC_TABLE_ROWS,
       rows: [
         {
@@ -380,9 +387,10 @@ export class DocumentsService {
       contractorPmName: (first.contractorPmName ?? '').toUpperCase(),
       contractorPmId: first.contractorPmId ?? '',
       signature: first.signaturePath ? fileDataUri(first.signaturePath) : null,
-      // Dated from the GCL the certificate follows from.
-      gclDate: first.gclDate,
-      pacDate: first.gclDate ?? first.endDate,
+      // Dated from the contractor's signature on the GCL, with no fallback —
+      // see the note in pacView.
+      gclDate: first.contractorSignDate,
+      pacDate: first.contractorSignDate,
       rows,
     };
   }
@@ -397,7 +405,9 @@ export class DocumentsService {
       poNumber: view.poNumber,
       contractorPmName: view.contractorPmName,
       contractorPmId: view.contractorPmId,
-      signedDate: first.gclDate ? new Date(first.gclDate).toLocaleDateString('en-GB') : '',
+      signedDate: first.contractorSignDate
+        ? new Date(first.contractorSignDate).toLocaleDateString('en-GB')
+        : '',
       rows: batch.packages.map((p) => ({
         siteNo: p.siteNo,
         region: p.region ?? '',
@@ -416,7 +426,9 @@ export class DocumentsService {
       poNumber: pkg.poNumber ?? '',
       contractorPmName: (pkg.contractorPmName ?? '').toUpperCase(),
       contractorPmId: pkg.contractorPmId ?? '',
-      signedDate: pkg.gclDate ? new Date(pkg.gclDate).toLocaleDateString('en-GB') : '',
+      signedDate: pkg.contractorSignDate
+        ? new Date(pkg.contractorSignDate).toLocaleDateString('en-GB')
+        : '',
       rows: [
         {
           siteNo: pkg.siteNo,

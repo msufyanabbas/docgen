@@ -60,6 +60,8 @@ export interface ParsedGcl {
   poNumber: string | null;
   gclDate: Date | null;
   contractorPmName: string | null;
+  /** When the contractor signed, from their own sign-off block. */
+  contractorSignDate: Date | null;
   mspRepName: string | null;
   notes: string | null;
   /** Quantity columns the user can choose between for pricing. */
@@ -473,6 +475,7 @@ export async function parseGcl(buffer: Buffer): Promise<ParsedGcl> {
 
   let contractorPmName: string | null = null;
   let mspRepName: string | null = null;
+  let contractorSignDate: Date | null = null;
 
   const nameLabel = tokens.find(
     (t) => norm(t.text) === 'name' && t.y > tableBottom && t.x < 120,
@@ -511,6 +514,30 @@ export async function parseGcl(buffer: Buffer): Promise<ParsedGcl> {
 
     contractorPmName = nearest(candidates.filter((t) => t.x < boundary));
     mspRepName = nearest(candidates.filter((t) => t.x >= boundary));
+
+    /*
+     * The date in the contractor's sign-off block — when they signed — which is
+     * not the same as the date printed in the GCL header. The certificates that
+     * follow carry the signing date, so it is read from the same column the
+     * signature sits in.
+     */
+    const dateLabel = tokens.find(
+      (t) => /^date\s*:?$/i.test(t.text.trim()) && t.y > nameLabel.y && t.x < 120,
+    );
+    if (dateLabel) {
+      const inColumn = tokens.filter(
+        (t) =>
+          t.y >= dateLabel.y - 4 &&
+          t.y <= dateLabel.y + 22 &&
+          t.x > dateLabel.x + dateLabel.w &&
+          t.x < boundary &&
+          /\d/.test(t.text),
+      );
+      const raw = inColumn.sort(
+        (a, b) => Math.abs(a.y - dateLabel.y) - Math.abs(b.y - dateLabel.y),
+      )[0]?.text;
+      if (raw) contractorSignDate = parseFlexibleDate(raw);
+    }
   }
 
   // Anything printed below the instructions block is a hand-written remark.
@@ -545,6 +572,7 @@ export async function parseGcl(buffer: Buffer): Promise<ParsedGcl> {
     poNumber,
     gclDate,
     contractorPmName,
+    contractorSignDate,
     mspRepName,
     notes,
     quantityColumns,

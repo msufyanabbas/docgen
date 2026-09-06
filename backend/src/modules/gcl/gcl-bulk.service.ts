@@ -178,6 +178,8 @@ export class GclBulkService {
       /** As posted: date strings, not Dates. */
       serviceDate?: string;
       startDate?: string;
+      /** Work Order end date. Blank unless chosen — see packages.service. */
+      endDate?: string;
       notes?: string;
       /** Printed on the PAC beside the contractor PM's name. */
       contractorPmId?: string;
@@ -236,6 +238,7 @@ export class GclBulkService {
             uplVersion: dto.uplVersion || 'v1',
             serviceDate: toDate(dto.serviceDate),
             startDate: toDate(dto.startDate),
+            endDate: toDate(dto.endDate),
             notes: dto.notes || undefined,
             contractorPmId: dto.contractorPmId || undefined,
             overwrite,

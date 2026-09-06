@@ -211,7 +211,9 @@
       <td>Sign :</td>
     </tr>
     <tr>
-      <td>{{#if pacDate}}Date : {{slashDate pacDate}}{{/if}}</td>
+      {{!-- The label always prints; only the value is conditional, so an
+            unknown date reads as an empty field rather than a missing row. --}}
+      <td>Date : {{#if pacDate}}{{slashDate pacDate}}{{/if}}</td>
       <td>Date :</td>
     </tr>
   </table>

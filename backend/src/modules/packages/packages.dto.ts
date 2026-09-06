@@ -57,6 +57,8 @@ export class UpdateLineDto {
 }
 
 export class UpdatePackageDto {
+  /** The date beside the contractor's signature on the GCL. */
+  @IsOptional() @Type(() => Date) @IsDate() contractorSignDate?: Date;
   @IsOptional() @IsEnum(QuantitySource) quantitySource?: QuantitySource;
   @IsOptional() @IsString() quantityFieldKey?: string;
   @IsOptional() @IsString() quantityFieldLabel?: string;

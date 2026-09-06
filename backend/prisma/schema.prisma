@@ -103,6 +103,9 @@ model Package {
 
   // --- Signatories ---
   contractorPmName String?
+  /// When the contractor signed the GCL — carried onto the PAC and FAC. Not
+  /// the same as gclDate, which is the date printed in the header.
+  contractorSignDate DateTime?
   contractorPmId   String?
   mspRepName       String?
   mspSignDate      DateTime?

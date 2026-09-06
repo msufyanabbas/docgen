@@ -135,10 +135,15 @@ export class PackagesService {
         serviceDate,
         handoverDate: dto.handoverDate ?? null,
         startDate: dto.startDate ?? null,
-        endDate: dto.endDate ?? parsed.gclDate ?? null,
+        // Left empty unless chosen: the GCL's date is when it was signed, not
+        // when the work order ends, and guessing puts a wrong date on the WO.
+        endDate: dto.endDate ?? null,
 
         contractorPmName: dto.contractorPmName ?? parsed.contractorPmName,
         contractorPmId: dto.contractorPmId ?? null,
+        // The date beside the contractor's signature on the GCL. This is what
+        // dates the PAC and FAC — not the GCL header date.
+        contractorSignDate: parsed.contractorSignDate ?? null,
         mspRepName: parsed.mspRepName,
         tawalPmName: dto.tawalPmName ?? null,
         tawalPmId: dto.tawalPmId ?? null,

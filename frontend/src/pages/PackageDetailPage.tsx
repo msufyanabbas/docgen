@@ -81,6 +81,7 @@ export default function PackageDetailPage() {
         handoverDate: pkg.handoverDate ?? undefined,
         startDate: pkg.startDate ?? undefined,
         endDate: pkg.endDate ?? undefined,
+        contractorSignDate: pkg.contractorSignDate ?? undefined,
         contractorPmName: pkg.contractorPmName ?? undefined,
         contractorPmId: pkg.contractorPmId ?? undefined,
         tawalPmName: pkg.tawalPmName ?? undefined,
@@ -211,6 +212,11 @@ export default function PackageDetailPage() {
           <Field label="End Date">
             <Input type="date" value={dateInput(pkg.endDate)}
                    onChange={(e) => patch({ endDate: e.target.value || null })} />
+          </Field>
+
+          <Field label="Contractor signed" hint="Dates the PAC and FAC">
+            <Input type="date" value={dateInput(pkg.contractorSignDate)}
+                   onChange={(e) => patch({ contractorSignDate: e.target.value || null })} />
           </Field>
           <Field label="PO Value">
             <Input type="number" step="0.01" value={pkg.poValue ?? ''}

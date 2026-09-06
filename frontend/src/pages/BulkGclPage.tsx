@@ -34,7 +34,7 @@ export default function BulkGclPage() {
   const [result, setResult] = useState<BulkCommitResult | null>(null);
   const [busy, setBusy] = useState<'read' | 'commit' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ serviceDate: '', startDate: '', notes: '', contractorPmId: '' });
+  const [form, setForm] = useState({ serviceDate: '', startDate: '', endDate: '', notes: '', contractorPmId: '' });
   const [replaceExisting, setReplaceExisting] = useState(false);
 
   useEffect(() => {
@@ -89,6 +89,7 @@ export default function BulkGclPage() {
         onDuplicate: replaceExisting ? 'overwrite' : 'skip',
         ...(form.serviceDate ? { serviceDate: form.serviceDate } : {}),
         ...(form.startDate ? { startDate: form.startDate } : {}),
+        ...(form.endDate ? { endDate: form.endDate } : {}),
         ...(form.notes ? { notes: form.notes } : {}),
       });
       setResult(r);
@@ -436,7 +437,7 @@ export default function BulkGclPage() {
 
               <Card>
                 <CardHead title="4 · Applied to every site" />
-                <div className="grid gap-4 px-4 py-5 sm:grid-cols-3 sm:px-5">
+                <div className="grid gap-4 px-4 py-5 sm:grid-cols-2 sm:px-5 lg:grid-cols-4">
                   <Field
                     label="Contractor PM ID"
                     hint="Printed on the PAC beside the name — required"
@@ -459,6 +460,13 @@ export default function BulkGclPage() {
                       type="date"
                       value={form.startDate}
                       onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="End date" hint="Left blank on the Work Order if not set">
+                    <Input
+                      type="date"
+                      value={form.endDate}
+                      onChange={(e) => setForm({ ...form, endDate: e.target.value })}
                     />
                   </Field>
                   <Field label="Remarks">

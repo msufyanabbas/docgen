@@ -38,6 +38,7 @@ export interface GclPreview {
   poNumber: string | null;
   gclDate: string | null;
   contractorPmName: string | null;
+  contractorSignDate: string | null;
   mspRepName: string | null;
   notes: string | null;
   lines: PreviewLine[];
@@ -141,6 +142,8 @@ export interface Package {
   endDate: string | null;
   contractorPmName: string | null;
   contractorPmId: string | null;
+  /** Dates the PAC and FAC — read from the GCL sign-off block. */
+  contractorSignDate: string | null;
   mspRepName: string | null;
   tawalPmName: string | null;
   tawalPmId: string | null;
