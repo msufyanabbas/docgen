@@ -26,6 +26,9 @@ export default () => ({
     url:
       process.env.EXTERNAL_PROJECTS_URL ||
       'http://147.79.114.76:5003/api/projects/public/projects',
+    SITE_TAGS_URL:
+      process.env.SITE_TAGS_URL ??
+      'https://tawal-site.smart-life.sa/api/sites/tags',
   },
 
   puppeteerExecutablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,

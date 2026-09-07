@@ -20,6 +20,7 @@ import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { PermissionsGuard } from './modules/auth/permissions.guard';
 import { DocxToPdfService } from './modules/mop/docx-to-pdf.service';
 import { HealthController } from './modules/health/health.controller';
+import { SiteTagsModule } from './modules/site-tags/site-tags.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { HealthController } from './modules/health/health.controller';
     MopModule,
     UplModule,
     GclModule,
+    SiteTagsModule,
     PackagesModule,
     DocumentsModule,
   ],

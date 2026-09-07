@@ -4,6 +4,7 @@ import { Prisma, QuantitySource } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UplService } from '../upl/upl.service';
 import { ExternalProjectsService } from '../external-projects/external-projects.service';
+import { SiteTagsService } from '../site-tags/site-tags.service';
 import { ParsedGcl } from '../gcl/gcl.parser';
 import { CreateFromGclDto, UpdatePackageDto, QueryPackagesDto } from './packages.dto';
 
@@ -31,6 +32,7 @@ export class PackagesService {
     private readonly upl: UplService,
     private readonly config: ConfigService,
     private readonly externalProjects: ExternalProjectsService,
+    private readonly siteTags: SiteTagsService,
   ) {}
 
   /* ------------------------------------------------------------ creation */
@@ -73,6 +75,10 @@ export class PackagesService {
     // The Work Order is issued by the tracker, so that number wins over
     // whatever is printed on the document.
     const woNumber = (dto.woNumber ?? tracked?.woNumber ?? parsed.woNumber)!.trim();
+
+    // Tags are an enrichment: if the service is down the package still builds,
+    // with the column blank rather than the whole batch failing.
+    const siteTags = await this.siteTags.index();
 
     const existing = await this.prisma.package.findUnique({ where: { woNumber } });
     if (existing && !dto.overwrite) {
@@ -175,7 +181,9 @@ export class PackagesService {
             quantity: D(l.quantity),
             quantities: (l.quantities ?? {}) as any,
             serialNumber: l.serialNumber,
-            tagNumber: 'N/A',
+            // The GCL carries serials but not asset tags; those live in the
+            // site system. 'N/A' where none is recorded, as before.
+            tagNumber: SiteTagsService.tagFor(siteTags, l.itemCode) ?? 'N/A',
             serviceDate,
             unitPrice: D(l.unitPrice),
             lineTotal: round2(l.lineTotal),

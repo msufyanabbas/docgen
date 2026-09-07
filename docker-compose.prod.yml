@@ -48,6 +48,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-ChangeMe123!}
       ADMIN_NAME: ${ADMIN_NAME:-Administrator}
       SOFFICE_PATH: ${SOFFICE_PATH:-/usr/bin/soffice}
+      SITE_TAGS_URL: ${SITE_TAGS_URL:-https://tawal-site.smart-life.sa/api/sites/tags}
       EXTERNAL_PROJECTS_URL: ${EXTERNAL_PROJECTS_URL:-http://147.79.114.76:5003/api/projects/public/projects}
     volumes:
       # Generated documents and uploaded GCLs must outlive the container.
