@@ -78,7 +78,13 @@ export class PackagesService {
 
     // Tags are an enrichment: if the service is down the package still builds,
     // with the column blank rather than the whole batch failing.
-    const siteTags = await this.siteTags.index();
+    // Whichever identifier the tag service keys on, one of these will match.
+    const siteTags = await this.siteTags.forSite(
+      tracked?.siteId,
+      tracked?.id,
+      parsed.siteNo,
+      dto.externalSiteId,
+    );
 
     const existing = await this.prisma.package.findUnique({ where: { woNumber } });
     if (existing && !dto.overwrite) {

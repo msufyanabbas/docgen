@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 interface TagsEntry {
   id: string;
+  siteName: string;
   tagsByItemCode: Record<string, string[]>;
 }
 
@@ -17,8 +18,8 @@ interface TagsEntry {
 export class SiteTagsService {
   private readonly logger = new Logger(SiteTagsService.name);
   private readonly url: string;
-  /** Every tag in the service, pooled by item code. */
-  private cache: { at: number; byItemCode: Map<string, string[]> } | null = null;
+  /** Entries keyed by the site identifier the service reports. */
+  private cache: { at: number; bySite: Map<string, Map<string, string[]>> } | null = null;
 
   /** Short, because tags are edited in the other system while work is ongoing. */
   private readonly TTL_MS = 60_000;
@@ -43,15 +44,17 @@ export class SiteTagsService {
   }
 
   /**
-   * Pools every entry into one item-code index.
+   * Loads the service's entries, keyed by site name.
    *
-   * The site id in the response keys the tag service's own records, which do
-   * not correspond to the tracker's projects, so it is not used for matching.
-   * Tags are collected across all sites and applied wherever the item code
-   * appears.
+   * A site appears under several records — ZRU104, ZMK551R11 and ZRY904 each
+   * have more than one, often with tags recorded against different item codes.
+   * So entries sharing a name are merged rather than the last one winning,
+   * which would drop tags depending on response order.
+   *
+   * The record id is indexed too, as a fallback for a caller that only has it.
    */
-  private async load(): Promise<Map<string, string[]>> {
-    if (this.cache && Date.now() - this.cache.at < this.TTL_MS) return this.cache.byItemCode;
+  private async load(): Promise<Map<string, Map<string, string[]>>> {
+    if (this.cache && Date.now() - this.cache.at < this.TTL_MS) return this.cache.bySite;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12_000);
@@ -61,38 +64,53 @@ export class SiteTagsService {
       if (!res.ok) throw new Error(`the tag service returned ${res.status}`);
 
       const payload = (await res.json()) as TagsEntry[];
-      const byItemCode = new Map<string, string[]>();
+      const bySite = new Map<string, Map<string, string[]>>();
+
+      const merge = (key: string, code: string, tags: string[]) => {
+        if (!key) return;
+        const forSite = bySite.get(key) ?? new Map<string, string[]>();
+        const bucket = forSite.get(code) ?? [];
+        for (const tag of tags) if (!bucket.includes(tag)) bucket.push(tag);
+        if (bucket.length) forSite.set(code, bucket);
+        bySite.set(key, forSite);
+      };
 
       for (const entry of Array.isArray(payload) ? payload : []) {
-        for (const [code, tags] of Object.entries(entry?.tagsByItemCode ?? {})) {
-          const key = SiteTagsService.normaliseCode(code);
-          const bucket = byItemCode.get(key) ?? [];
+        const name = String(entry?.siteName ?? '').trim().toLowerCase();
+        const id = String(entry?.id ?? '').trim().toLowerCase();
 
-          for (const raw of tags ?? []) {
+        // Register the site even with no tags, so "known but untagged" stays
+        // distinguishable from "never heard of".
+        if (name && !bySite.has(name)) bySite.set(name, new Map());
+        if (id && !bySite.has(id)) bySite.set(id, new Map());
+
+        for (const [rawCode, rawTags] of Object.entries(entry?.tagsByItemCode ?? {})) {
+          const cleaned: string[] = [];
+          for (const raw of rawTags ?? []) {
             const tag = String(raw ?? '').trim();
-            // "0", "00", "No tag" are what the other system stores for an
-            // untagged unit. Printing them on a BOQ is worse than a gap.
-            if (!tag || /^0+$/.test(tag) || /^no\s*tag$/i.test(tag)) continue;
-            // The same asset can be listed under several sites.
-            if (!bucket.includes(tag)) bucket.push(tag);
+            // "0", "00", "No tag" and the odd "N9 tag" are what the other
+            // system stores for an untagged unit. Printing them on a BOQ is
+            // worse than a gap.
+            if (!tag || /^0+$/.test(tag) || /^n[o9]\s*tag$/i.test(tag)) continue;
+            if (!cleaned.includes(tag)) cleaned.push(tag);
           }
+          if (!cleaned.length) continue;
 
-          if (bucket.length) byItemCode.set(key, bucket);
+          const code = SiteTagsService.normaliseCode(rawCode);
+          merge(name, code, cleaned);
+          merge(id, code, cleaned);
         }
       }
 
-      this.cache = { at: Date.now(), byItemCode };
-      this.logger.log(
-        `Loaded tags for ${byItemCode.size} item code(s), ` +
-          `${[...byItemCode.values()].reduce((a, b) => a + b.length, 0)} tag(s) total`,
-      );
-      return byItemCode;
+      this.cache = { at: Date.now(), bySite };
+      this.logger.log(`Loaded tags for ${bySite.size} site key(s)`);
+      return bySite;
     } catch (e: any) {
       const reason = e?.name === 'AbortError' ? 'the request timed out' : e.message;
       // Tags enrich the BOQ; they are not a prerequisite. A package still
       // builds with the column blank rather than failing the batch.
       this.logger.warn(`Tags unavailable — ${reason}`);
-      return this.cache?.byItemCode ?? new Map();
+      return this.cache?.bySite ?? new Map();
     } finally {
       clearTimeout(timeout);
     }
@@ -103,16 +121,38 @@ export class SiteTagsService {
     this.cache = null;
   }
 
-  /** The pooled index, for a caller that will look up several codes. */
-  async index(): Promise<Map<string, string[]>> {
-    return this.load();
+  /**
+   * Tags for one site, keyed by normalised item code.
+   *
+   * Matching is on the site name the tag service reports. Several candidates
+   * are passed because the tracker's site ID, the site number printed on the
+   * GCL and the project title are not always the same string.
+   */
+  async forSite(...candidates: (string | null | undefined)[]): Promise<Map<string, string[]>> {
+    const bySite = await this.load();
+
+    for (const candidate of candidates) {
+      const key = String(candidate ?? '').trim().toLowerCase();
+      if (key && bySite.has(key)) return bySite.get(key)!;
+    }
+
+    const tried = [...new Set(candidates.filter(Boolean).map(String))].join(', ') || '(none)';
+    /*
+     * Say what the service actually holds, not just what we asked for. The
+     * identifier the tag service keys on has to be read off its own data —
+     * a bare "no match" leaves nothing to act on.
+     */
+    const sample = [...bySite.keys()].slice(0, 5).join(', ');
+    this.logger.warn(
+      `No tag entry for: ${tried}. ` +
+        `The service returned ${bySite.size} site(s), keyed like: ${sample || '(none)'}`,
+    );
+    return new Map();
   }
 
   /**
-   * Every tag recorded against an item code, comma separated.
-   *
-   * Returns null when there are none, so the caller can fall back to whatever
-   * it shows for an untagged line.
+   * Every tag recorded against an item code for that site, comma separated.
+   * Null when there are none, so the caller falls back to its own placeholder.
    */
   static tagFor(index: Map<string, string[]>, itemCode: string): string | null {
     const found = index.get(SiteTagsService.normaliseCode(itemCode));
