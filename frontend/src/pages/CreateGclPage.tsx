@@ -38,6 +38,9 @@ export default function CreateGclPage() {
     mspRepName: '',
     notes: '',
   });
+  // The Work Order number is unique, which is what stops the same job being
+  // billed twice. Replacing is therefore deliberate, never automatic.
+  const [replaceExisting, setReplaceExisting] = useState(false);
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   useEffect(() => {
@@ -76,6 +79,7 @@ export default function CreateGclPage() {
       Object.entries(form).forEach(([k, v]) => {
         if (v !== '' && v != null) fd.append(k, String(v));
       });
+      if (replaceExisting) fd.append('overwrite', 'true');
 
       const { packages } = await api.uploadForm<{ packages: Package[] }>(
         `/gcl/from-project/${encodeURIComponent(externalSiteId!)}`,
@@ -220,6 +224,21 @@ export default function CreateGclPage() {
             <div className="border-t border-line/60 px-4 py-5 sm:px-5">
               <p className="label">Contractor signature</p>
               <SignatureInput onChange={setSignature} />
+            </div>
+
+            <div className="border-t border-line/60 px-4 py-4 sm:px-5">
+              <Checkbox
+                checked={replaceExisting}
+                onChange={setReplaceExisting}
+                label={
+                  <span>
+                    <span className="text-sm">Replace the existing package</span>
+                    <span className="block text-[11px] text-fg-subtle">
+                      Tick this if a package for the same Work Order already exists.
+                    </span>
+                  </span>
+                }
+              />
             </div>
           </Card>
 

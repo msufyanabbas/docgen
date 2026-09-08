@@ -160,6 +160,29 @@ Signed GCL   →  patStatus  Approved · signed GCL attached
 An approved PAT alone is not enough for the signed path — the document has to be there, because
 it is what everything downstream is built from.
 
+### Tags and serial numbers
+
+Both come from the site service (`SITE_TAGS_URL`), matched on `siteName` and
+then on item code:
+
+```
+tagsByItemCode      →  the BOQ's TAG # column
+serialsByItemCode   →  appended to the GCL line description as ".SN: xxx"
+```
+
+Item codes are normalised before matching — the GCL prints `SMART-TWR-023`
+where the service returns `Smart-TWR-0023`, so case and zero-padding are
+reduced to a canonical form.
+
+Several units of one item each carry their own value, so they join with commas.
+A serial already printed on the GCL is not appended twice. Placeholders the
+other system uses for unrecorded values — `0`, `00`, `000`, `No tag`, and the
+misspelled `N9 tag` — are filtered out; printing them would be worse than a gap.
+
+The site service is authoritative for serials over the GCL: it is maintained as
+units are installed and swapped, while the GCL is a snapshot of the day it was
+signed.
+
 ### Bulk GCL
 
 Select projects (or all of them), press Continue, and each project's signed GCL is fetched, read,

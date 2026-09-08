@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { UplService } from '../upl/upl.service';
 import { ExternalProjectsService } from '../external-projects/external-projects.service';
+import { SiteTagsService } from '../site-tags/site-tags.service';
 import { parseScopeWorkbook, ScopeSite } from './scope.parser';
 import { CreateGclDto, ScopeSiteInputDto } from './gcl.dto';
 import { DocumentsService } from '../documents/documents.service';
@@ -23,6 +24,7 @@ export class GclBuilderService {
     private readonly config: ConfigService,
     private readonly externalProjects: ExternalProjectsService,
     private readonly documents: DocumentsService,
+    private readonly siteTags: SiteTagsService,
   ) {}
 
   /* --------------------------------------------------------------- preview */
@@ -169,6 +171,19 @@ export class GclBuilderService {
     const o = overrides.get(key);
 
     const siteNo = o?.siteNo ?? site.siteCode ?? site.tawalSiteId ?? 'UNKNOWN';
+
+    /*
+     * Tags and serials live in the site service. Enrichment, not a
+     * prerequisite: if it cannot be reached the GCL still builds with those
+     * fields blank. Several identifiers are tried because the site service
+     * keys on its own site names.
+     */
+    const siteData = await this.siteTags.forSite(
+      tracked?.siteId,
+      siteNo,
+      site.tawalSiteId,
+      tracked?.id,
+    );
     /*
      * The Work Order number belongs to the project, not to us. The tracker
      * issues it (mapping.woIssuance.woNumber) and Tawal references that number
@@ -191,7 +206,10 @@ export class GclBuilderService {
     if (existing) {
       if (!dto.overwrite) {
         throw new BadRequestException(
-          `A package for ${woNumber} already exists. Re-submit with overwrite=true to replace it.`,
+          // Names the site as well as the WO: with a hundred similar numbers,
+          // the site is what tells you which job this is.
+          `A package for ${siteNo} (Work Order ${woNumber}) already exists. ` +
+            `Tick "Replace the existing package" to rebuild it.`,
         );
       }
       await this.prisma.package.delete({ where: { id: existing.id } });
@@ -224,8 +242,14 @@ export class GclBuilderService {
         asBuiltQty,
         quantity,
         quantities: (l.quantities ?? {}) as any,
-        serialNumber: null,
-        tagNumber: 'N/A',
+        /*
+         * Tags and serials come from the site service, not the scope sheet —
+         * the sheet is a plan of what to install and carries neither. The
+         * serial is appended to the description as ".SN: xxx" when the
+         * documents are generated.
+         */
+        serialNumber: SiteTagsService.serialFor(siteData, l.itemCode),
+        tagNumber: SiteTagsService.tagFor(siteData.tags, l.itemCode) ?? 'N/A',
         serviceDate: dto.gclDate ?? null,
         unitPrice,
         lineTotal,

@@ -47,6 +47,19 @@ export class StorageService implements OnModuleInit {
     return createReadStream(filePath);
   }
 
+  /**
+   * Deletes a stored file. Silent when it is already gone — the caller is
+   * removing the record either way, and a missing file must not block that.
+   */
+  async remove(filePath: string) {
+    try {
+      await fs.unlink(filePath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async exists(filePath: string) {
     try {
       await fs.access(filePath);

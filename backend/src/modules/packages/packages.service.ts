@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { UplService } from '../upl/upl.service';
 import { ExternalProjectsService } from '../external-projects/external-projects.service';
 import { SiteTagsService } from '../site-tags/site-tags.service';
+import { StorageService } from '../storage/storage.service';
 import { ParsedGcl } from '../gcl/gcl.parser';
 import { CreateFromGclDto, UpdatePackageDto, QueryPackagesDto } from './packages.dto';
 
@@ -33,6 +34,7 @@ export class PackagesService {
     private readonly config: ConfigService,
     private readonly externalProjects: ExternalProjectsService,
     private readonly siteTags: SiteTagsService,
+    private readonly storage: StorageService,
   ) {}
 
   /* ------------------------------------------------------------ creation */
@@ -76,10 +78,11 @@ export class PackagesService {
     // whatever is printed on the document.
     const woNumber = (dto.woNumber ?? tracked?.woNumber ?? parsed.woNumber)!.trim();
 
-    // Tags are an enrichment: if the service is down the package still builds,
-    // with the column blank rather than the whole batch failing.
+    // Tags and serials enrich the documents: if the service is down the
+    // package still builds, with those fields blank rather than the whole
+    // batch failing.
     // Whichever identifier the tag service keys on, one of these will match.
-    const siteTags = await this.siteTags.forSite(
+    const siteData = await this.siteTags.forSite(
       tracked?.siteId,
       tracked?.id,
       parsed.siteNo,
@@ -186,10 +189,18 @@ export class PackagesService {
             asBuiltQty: D(l.asBuiltQty),
             quantity: D(l.quantity),
             quantities: (l.quantities ?? {}) as any,
-            serialNumber: l.serialNumber,
+            /*
+             * The serial recorded against this item in the site service wins
+             * over whatever the GCL prints: the site service is maintained as
+             * units are installed and swapped, while the GCL is a snapshot of
+             * the day it was signed. It is appended to the description as
+             * ".SN: xxx" when the documents are generated.
+             */
+            serialNumber:
+              SiteTagsService.serialFor(siteData, l.itemCode) ?? l.serialNumber,
             // The GCL carries serials but not asset tags; those live in the
             // site system. 'N/A' where none is recorded, as before.
-            tagNumber: SiteTagsService.tagFor(siteTags, l.itemCode) ?? 'N/A',
+            tagNumber: SiteTagsService.tagFor(siteData.tags, l.itemCode) ?? 'N/A',
             serviceDate,
             unitPrice: D(l.unitPrice),
             lineTotal: round2(l.lineTotal),
@@ -389,8 +400,29 @@ export class PackagesService {
     return this.reprice(id);
   }
 
+  /**
+   * Deletes a package and the files it produced.
+   *
+   * Lines and generated-document rows cascade, but the files themselves sit on
+   * disk and would otherwise accumulate with nothing pointing at them. Removal
+   * is best-effort: a missing file must not block deleting the record.
+   */
   async remove(id: string) {
-    await this.findOne(id);
+    const pkg = await this.prisma.package.findUnique({
+      where: { id },
+      include: { documents: true },
+    });
+    if (!pkg) throw new NotFoundException('Package not found');
+
+    for (const path of [
+      ...(pkg.documents ?? []).map((d: any) => d.path),
+      pkg.sourceFilePath,
+      pkg.signaturePath,
+    ]) {
+      if (path) await this.storage.remove(path).catch(() => undefined);
+    }
+
+    this.logger.log(`Deleted package ${pkg.woNumber} (${pkg.siteNo})`);
     return this.prisma.package.delete({ where: { id } });
   }
 }

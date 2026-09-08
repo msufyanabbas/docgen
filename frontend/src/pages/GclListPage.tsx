@@ -1,7 +1,8 @@
-import { Building2, ChevronDown, FileSignature, FileStack, FileUp, Search } from 'lucide-react';
+import { Building2, ChevronDown, FileSignature, FileStack, FileUp, Search, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ProjectSelectDialog from '../components/ProjectSelectDialog';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { Alert, Empty, Spinner } from '../components/ui/Feedback';
 import { Badge, StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -21,8 +22,13 @@ const na = (v: string | null | undefined) => (v && v.trim() ? v : 'N/A');
  * a GCL with no project cannot be reconciled later.
  */
 export default function GclListPage() {
+  // Two-step: deleting a package removes its documents and its priced lines,
+  // which is not something to do on a stray click.
+  const [confirmDelete, setConfirmDelete] = useState<Package | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const nav = useNavigate();
   const { can } = useAuth();
+  const canDelete = can('gcl', 'delete');
   const [packages, setPackages] = useState<Package[] | null>(null);
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -158,6 +164,7 @@ export default function GclListPage() {
                       <th className="th text-right">Net</th>
                       <th className="th">Status</th>
                       <th className="th">Created</th>
+                      {canDelete && <th className="th" />}
                     </tr>
                   </thead>
                   <tbody>
@@ -184,6 +191,18 @@ export default function GclListPage() {
                         <td className="td text-right font-semibold">{money(p.netAmount, p.currency)}</td>
                         <td className="td"><StatusBadge status={p.status} /></td>
                         <td className="td text-xs text-fg-subtle">{shortDate(p.createdAt)}</td>
+                        {canDelete && (
+                          <td className="td text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-rose-500"
+                              onClick={() => setConfirmDelete(p)}
+                            >
+                              <Trash2 size={13} />
+                            </Button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -193,6 +212,36 @@ export default function GclListPage() {
           </Card>
         );
       })}
+
+      {/*
+        Deleting removes the package, its priced lines and every document
+        generated from it, so the site and Work Order are both spelled out —
+        with a hundred similar numbers, seeing the site is what confirms you
+        picked the right row.
+      */}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete this package?"
+        confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+        tone="danger"
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={async () => {
+          if (!confirmDelete) return;
+          setDeleting(true);
+          try {
+            await api.send(`/packages/${confirmDelete.id}`, 'DELETE');
+            setConfirmDelete(null);
+            load();
+          } catch (e) {
+            setError((e as Error).message);
+          } finally {
+            setDeleting(false);
+          }
+        }}
+      >
+        <b>{confirmDelete?.siteNo}</b> — Work Order {confirmDelete?.woNumber}.
+        Its BOQ, Work Order and certificates go with it. This cannot be undone.
+      </ConfirmDialog>
 
       <ProjectSelectDialog
         open={dialog !== null}
